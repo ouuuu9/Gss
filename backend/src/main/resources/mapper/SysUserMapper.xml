@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.SysUserMapper">
+
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM sys_user
+    </select>
+
+    <select id="selectByUsername" resultType="com.gss.entity.SysUser">
+        SELECT * FROM sys_user WHERE username = #{username}
+    </select>
+
+    <select id="selectById" resultType="com.gss.entity.SysUser">
+        SELECT * FROM sys_user WHERE id = #{id}
+    </select>
+
+    <select id="selectPage" resultType="com.gss.vo.SysUserVO">
+        SELECT u.id, u.username, u.name, u.role, u.company_id, u.driver_id, u.status, u.create_time,
+               c.name AS companyName
+        FROM sys_user u
+        LEFT JOIN transport_company c ON c.id = u.company_id
+        <where>
+            <if test="username != null and username != ''">
+                AND u.username LIKE CONCAT('%', #{username}, '%')
+            </if>
+            <if test="role != null and role != ''">
+                AND u.role = #{role}
+            </if>
+            <if test="companyId != null">
+                AND u.company_id = #{companyId}
+            </if>
+        </where>
+        ORDER BY u.id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM sys_user u
+        <where>
+            <if test="username != null and username != ''">
+                AND u.username LIKE CONCAT('%', #{username}, '%')
+            </if>
+            <if test="role != null and role != ''">
+                AND u.role = #{role}
+            </if>
+            <if test="companyId != null">
+                AND u.company_id = #{companyId}
+            </if>
+        </where>
+    </select>
+
+    <insert id="insert" parameterType="com.gss.entity.SysUser" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_user (username, password, name, role, company_id, driver_id, status)
+        VALUES (#{username}, #{password}, #{name}, #{role}, #{companyId}, #{driverId}, #{status})
+    </insert>
+
+    <update id="update" parameterType="com.gss.entity.SysUser">
+        UPDATE sys_user
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="companyId != null">company_id = #{companyId},</if>
+            <if test="driverId != null">driver_id = #{driverId},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM sys_user WHERE id = #{id}
+    </delete>
+
+    <update id="updatePassword">
+        UPDATE sys_user SET password = #{password} WHERE id = #{id}
+    </update>
+
+</mapper>

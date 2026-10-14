@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.TransportCompanyMapper">
+
+    <select id="selectAll" resultType="com.gss.entity.TransportCompany">
+        SELECT * FROM transport_company ORDER BY id ASC
+    </select>
+
+    <select id="selectById" resultType="com.gss.entity.TransportCompany">
+        SELECT * FROM transport_company WHERE id = #{id}
+    </select>
+
+    <select id="selectPage" resultType="com.gss.entity.TransportCompany">
+        SELECT *
+        FROM transport_company
+        <where>
+            <if test="name != null and name != ''">
+                AND name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="code != null and code != ''">
+                AND code LIKE CONCAT('%', #{code}, '%')
+            </if>
+        </where>
+        ORDER BY id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM transport_company
+        <where>
+            <if test="name != null and name != ''">
+                AND name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="code != null and code != ''">
+                AND code LIKE CONCAT('%', #{code}, '%')
+            </if>
+        </where>
+    </select>
+
+    <insert id="insert" parameterType="com.gss.entity.TransportCompany" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO transport_company (code, name, contact, phone, status)
+        VALUES (#{code}, #{name}, #{contact}, #{phone}, #{status})
+    </insert>
+
+    <update id="update" parameterType="com.gss.entity.TransportCompany">
+        UPDATE transport_company
+        <set>
+            <if test="code != null">code = #{code},</if>
+            <if test="name != null">name = #{name},</if>
+            <if test="contact != null">contact = #{contact},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM transport_company WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.TractorMapper">
+
+    <select id="selectByIcCardNo" resultType="com.gss.entity.Tractor">
+        SELECT * FROM tractor WHERE ic_card_no = #{icCardNo}
+    </select>
+
+    <select id="selectById" resultType="com.gss.entity.Tractor">
+        SELECT * FROM tractor WHERE id = #{id}
+    </select>
+
+    <select id="selectPage" resultType="com.gss.vo.TractorVO">
+        SELECT t.id, t.plate_no, t.frame_no, t.ic_card_no, t.company_id, t.axle_num, t.status, t.create_time,
+               c.name AS companyName
+        FROM tractor t
+        LEFT JOIN transport_company c ON c.id = t.company_id
+        <where>
+            <if test="plateNo != null and plateNo != ''">
+                AND t.plate_no LIKE CONCAT('%', #{plateNo}, '%')
+            </if>
+            <if test="icCardNo != null and icCardNo != ''">
+                AND t.ic_card_no LIKE CONCAT('%', #{icCardNo}, '%')
+            </if>
+            <if test="companyId != null">
+                AND t.company_id = #{companyId}
+            </if>
+        </where>
+        ORDER BY t.id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM tractor t
+        <where>
+            <if test="plateNo != null and plateNo != ''">
+                AND t.plate_no LIKE CONCAT('%', #{plateNo}, '%')
+            </if>
+            <if test="icCardNo != null and icCardNo != ''">
+                AND t.ic_card_no LIKE CONCAT('%', #{icCardNo}, '%')
+            </if>
+            <if test="companyId != null">
+                AND t.company_id = #{companyId}
+            </if>
+        </where>
+    </select>
+
+    <insert id="insert" parameterType="com.gss.entity.Tractor" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tractor (plate_no, frame_no, ic_card_no, company_id, axle_num, status)
+        VALUES (#{plateNo}, #{frameNo}, #{icCardNo}, #{companyId}, #{axleNum}, #{status})
+    </insert>
+
+    <update id="update" parameterType="com.gss.entity.Tractor">
+        UPDATE tractor
+        <set>
+            <if test="plateNo != null">plate_no = #{plateNo},</if>
+            <if test="frameNo != null">frame_no = #{frameNo},</if>
+            <if test="icCardNo != null">ic_card_no = #{icCardNo},</if>
+            <if test="companyId != null">company_id = #{companyId},</if>
+            <if test="axleNum != null">axle_num = #{axleNum},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM tractor WHERE id = #{id}
+    </delete>
+
+</mapper>

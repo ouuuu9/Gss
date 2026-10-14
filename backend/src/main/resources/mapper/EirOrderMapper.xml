@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.EirOrderMapper">
+
+    <select id="selectById" resultType="com.gss.entity.EirOrder">
+        SELECT * FROM eir_order WHERE id = #{id}
+    </select>
+
+    <select id="selectByEirNo" resultType="com.gss.entity.EirOrder">
+        SELECT * FROM eir_order WHERE eir_no = #{eirNo}
+    </select>
+
+    <select id="selectPage" resultType="com.gss.vo.EirOrderVO">
+        SELECT e.id, e.eir_no, e.business_type, e.container_no, e.container_size, e.container_type,
+               e.company_id, c.name AS companyName,
+               e.tractor_id, t.plate_no AS plateNo,
+               e.driver_id, d.name AS driverName,
+               e.status, e.dispatch_time, e.gate_in_time, e.gate_out_time, e.audit_time,
+               e.remark, e.create_time,
+               a.appt_time AS apptTime,
+               f.pay_status AS payStatus
+        FROM eir_order e
+        LEFT JOIN transport_company c ON c.id = e.company_id
+        LEFT JOIN tractor t ON t.id = e.tractor_id
+        LEFT JOIN driver d ON d.id = e.driver_id
+        LEFT JOIN (
+            SELECT eir_id, MAX(create_time) AS appt_time FROM appointment GROUP BY eir_id
+        ) a ON a.eir_id = e.id
+        LEFT JOIN fee_record f ON f.eir_id = e.id
+        <where>
+            <if test="eirNo != null and eirNo != ''">
+                AND e.eir_no LIKE CONCAT('%', #{eirNo}, '%')
+            </if>
+            <if test="status != null and status != ''">
+                AND e.status = #{status}
+            </if>
+            <if test="businessType != null and businessType != ''">
+                AND e.business_type = #{businessType}
+            </if>
+            <if test="companyId != null">
+                AND e.company_id = #{companyId}
+            </if>
+            <if test="driverId != null">
+                AND e.driver_id = #{driverId}
+            </if>
+        </where>
+        ORDER BY e.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM eir_order e
+        <where>
+            <if test="eirNo != null and eirNo != ''">
+                AND e.eir_no LIKE CONCAT('%', #{eirNo}, '%')
+            </if>
+            <if test="status != null and status != ''">
+                AND e.status = #{status}
+            </if>
+            <if test="businessType != null and businessType != ''">
+                AND e.business_type = #{businessType}
+            </if>
+            <if test="companyId != null">
+                AND e.company_id = #{companyId}
+            </if>
+            <if test="driverId != null">
+                AND e.driver_id = #{driverId}
+            </if>
+        </where>
+    </select>
+
+    <insert id="insert" parameterType="com.gss.entity.EirOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eir_order (eir_no, business_type, container_no, container_size, container_type,
+                               company_id, status, remark)
+        VALUES (#{eirNo}, #{businessType}, #{containerNo}, #{containerSize}, #{containerType},
+                #{companyId}, #{status}, #{remark})
+    </insert>
+
+    <update id="update" parameterType="com.gss.entity.EirOrder">
+        UPDATE eir_order
+        <set>
+            <if test="businessType != null">business_type = #{businessType},</if>
+            <if test="containerNo != null">container_no = #{containerNo},</if>
+            <if test="containerSize != null">container_size = #{containerSize},</if>
+            <if test="containerType != null">container_type = #{containerType},</if>
+            <if test="companyId != null">company_id = #{companyId},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus" parameterType="com.gss.entity.EirOrder">
+        UPDATE eir_order
+        SET
+            <!-- 状态时间戳自动落库：派单记录派单时间，取消派单回退时清空；审单完成记录审单时间 -->
+            <choose>
+                <when test="status == 'DISPATCHED'">dispatch_time = NOW(),</when>
+                <when test="status == 'CREATED'">dispatch_time = NULL,</when>
+                <when test="status == 'DONE'">audit_time = NOW(),</when>
+            </choose>
+            status = #{status},
+            tractor_id = #{tractorId},
+            driver_id = #{driverId},
+            gate_in_time = #{gateInTime},
+            gate_out_time = #{gateOutTime}
+        WHERE id = #{id}
+        <if test="expectedStatus != null and expectedStatus != ''">
+            AND status = #{expectedStatus}
+        </if>
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM eir_order WHERE id = #{id}
+    </delete>
+
+    <select id="countByStatus" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM eir_order
+        WHERE status = #{status}
+        <if test="companyId != null">
+            AND company_id = #{companyId}
+        </if>
+    </select>
+
+    <select id="selectByTractorId" resultType="com.gss.entity.EirOrder">
+        SELECT * FROM eir_order WHERE tractor_id = #{tractorId}
+    </select>
+
+    <select id="selectEarliestByTractorAndStatus" resultType="com.gss.entity.EirOrder">
+        SELECT * FROM eir_order
+        WHERE tractor_id = #{tractorId} AND status = #{status}
+        ORDER BY id ASC
+        LIMIT 1
+    </select>
+
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM eir_order
+        <where>
+            <if test="companyId != null">
+                company_id = #{companyId}
+            </if>
+        </where>
+    </select>
+
+    <select id="countByStatusOnDate" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM eir_order
+        <where>
+            <choose>
+                <when test="status == 'GATE_IN'">
+                    gate_in_time IS NOT NULL
+                    <if test="date != null and date != ''">
+                        AND DATE(gate_in_time) = #{date}
+                    </if>
+                    <if test="date == null or date == ''">
+                        AND DATE(gate_in_time) = CURDATE()
+                    </if>
+                </when>
+                <when test="status == 'GATE_OUT'">
+                    gate_out_time IS NOT NULL
+                    <if test="date != null and date != ''">
+                        AND DATE(gate_out_time) = #{date}
+                    </if>
+                    <if test="date == null or date == ''">
+                        AND DATE(gate_out_time) = CURDATE()
+                    </if>
+                </when>
+                <otherwise>
+                    status = #{status}
+                </otherwise>
+            </choose>
+        </where>
+    </select>
+
+    <select id="countByBusinessType" resultType="java.util.Map">
+        SELECT business_type AS bizType, COUNT(1) AS count
+        FROM eir_order
+        GROUP BY business_type
+    </select>
+
+    <select id="countDailyGateFlow" resultType="java.util.Map">
+        SELECT d.date, SUM(d.gateIn) AS gateIn, SUM(d.gateOut) AS gateOut
+        FROM (
+            SELECT DATE(gate_in_time) AS date, 1 AS gateIn, 0 AS gateOut
+            FROM eir_order
+            WHERE gate_in_time IS NOT NULL
+              AND DATE(gate_in_time) BETWEEN #{startDate} AND #{endDate}
+            UNION ALL
+            SELECT DATE(gate_out_time) AS date, 0 AS gateIn, 1 AS gateOut
+            FROM eir_order
+            WHERE gate_out_time IS NOT NULL
+              AND DATE(gate_out_time) BETWEEN #{startDate} AND #{endDate}
+        ) d
+        GROUP BY d.date
+        ORDER BY d.date
+    </select>
+
+    <select id="selectRecentGateOps" resultType="com.gss.vo.EirOrderVO">
+        SELECT e.id, e.eir_no AS eirNo, e.business_type AS businessType,
+               e.container_no AS containerNo, e.status,
+               t.plate_no AS plateNo,
+               CASE WHEN e.audit_time IS NOT NULL THEN 'AUDIT'
+                    WHEN e.gate_out_time IS NOT NULL THEN 'GATE_OUT'
+                    ELSE 'GATE_IN' END AS opType,
+               COALESCE(e.audit_time, e.gate_out_time, e.gate_in_time) AS opTime
+        FROM eir_order e
+        LEFT JOIN tractor t ON t.id = e.tractor_id
+        WHERE e.gate_in_time IS NOT NULL
+        ORDER BY opTime DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

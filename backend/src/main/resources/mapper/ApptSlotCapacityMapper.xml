@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.ApptSlotCapacityMapper">
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO appt_slot_capacity (appt_date, time_slot, capacity, booked_count)
+        VALUES (#{apptDate}, #{timeSlot}, #{capacity}, 0)
+    </insert>
+
+    <!-- 原子防超约核心：单条条件 UPDATE 同时完成"校验剩余 + 扣减名额"，
+         MySQL 行锁保证并发请求串行执行，影响行数为 0 即已约满 -->
+    <update id="tryBook">
+        UPDATE appt_slot_capacity
+        SET booked_count = booked_count + 1
+        WHERE appt_date = #{apptDate}
+          AND time_slot = #{timeSlot}
+          AND booked_count &lt; capacity
+    </update>
+
+    <update id="release">
+        UPDATE appt_slot_capacity
+        SET booked_count = GREATEST(booked_count - 1, 0)
+        WHERE appt_date = #{apptDate}
+          AND time_slot = #{timeSlot}
+    </update>
+
+    <!-- 未初始化的时段按默认容量返回，保证弹窗始终展示全部时段；
+         时段与默认容量由 Constants 传入，单一数据源，改配置不用动 SQL -->
+    <select id="selectRemain" resultType="java.util.HashMap">
+        SELECT t.time_slot AS timeSlot,
+               GREATEST(IFNULL(s.capacity, #{defaultCapacity}) - IFNULL(s.booked_count, 0), 0) AS remain
+        FROM (
+            <foreach collection="slots" item="slot" separator=" UNION ALL ">
+                SELECT #{slot} AS time_slot
+            </foreach>
+        ) t
+        LEFT JOIN appt_slot_capacity s
+               ON s.appt_date = #{date} AND s.time_slot = t.time_slot
+        ORDER BY t.time_slot
+    </select>
+
+</mapper>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.AppointmentMapper">
+
+    <select id="selectById" resultType="com.gss.entity.Appointment">
+        SELECT * FROM appointment WHERE id = #{id}
+    </select>
+
+    <select id="selectPage" resultType="com.gss.vo.AppointmentVO">
+        SELECT a.id, a.eir_id, a.plate_no, a.appt_date, a.time_slot, a.status, a.driver_id, a.create_time,
+               e.eir_no AS eirNo, e.business_type AS businessType, e.container_no AS containerNo,
+               e.company_id AS companyId, c.name AS companyName,
+               d.name AS driverName
+        FROM appointment a
+        LEFT JOIN eir_order e ON e.id = a.eir_id
+        LEFT JOIN transport_company c ON c.id = e.company_id
+        LEFT JOIN driver d ON d.id = a.driver_id
+        <where>
+            <if test="eirNo != null and eirNo != ''">
+                AND e.eir_no LIKE CONCAT('%', #{eirNo}, '%')
+            </if>
+            <if test="driverId != null">
+                AND a.driver_id = #{driverId}
+            </if>
+            <if test="status != null and status != ''">
+                AND a.status = #{status}
+            </if>
+            <if test="companyId != null">
+                AND e.company_id = #{companyId}
+            </if>
+            <if test="apptDate != null and apptDate != ''">
+                AND a.appt_date = #{apptDate}
+            </if>
+        </where>
+        ORDER BY a.appt_date DESC, a.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM appointment a
+        LEFT JOIN eir_order e ON e.id = a.eir_id
+        <where>
+            <if test="eirNo != null and eirNo != ''">
+                AND e.eir_no LIKE CONCAT('%', #{eirNo}, '%')
+            </if>
+            <if test="driverId != null">
+                AND a.driver_id = #{driverId}
+            </if>
+            <if test="status != null and status != ''">
+                AND a.status = #{status}
+            </if>
+            <if test="companyId != null">
+                AND e.company_id = #{companyId}
+            </if>
+            <if test="apptDate != null and apptDate != ''">
+                AND a.appt_date = #{apptDate}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectActiveByEirId" resultType="com.gss.entity.Appointment">
+        SELECT * FROM appointment
+        WHERE eir_id = #{eirId} AND status = 'ACTIVE'
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="com.gss.entity.Appointment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO appointment (eir_id, plate_no, appt_date, time_slot, status, driver_id)
+        VALUES (#{eirId}, #{plateNo}, #{apptDate}, #{timeSlot}, #{status}, #{driverId})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE appointment SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <select id="countActive" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM appointment WHERE status = 'ACTIVE'
+    </select>
+
+    <update id="updateStatusIf">
+        UPDATE appointment SET status = #{status}
+        WHERE id = #{id} AND status = #{expectedStatus}
+    </update>
+
+    <!-- 已过时段仍未进闸的有效预约：日期已过，或当天时段结束时刻早于当前时间 -->
+    <select id="selectExpired" resultType="com.gss.entity.Appointment">
+        SELECT * FROM appointment
+        WHERE status = 'ACTIVE'
+          AND (appt_date &lt; CURDATE()
+               OR (appt_date = CURDATE()
+                   AND SUBSTRING_INDEX(time_slot, '-', -1) &lt; DATE_FORMAT(NOW(), '%H:%i')))
+    </select>
+
+</mapper>
