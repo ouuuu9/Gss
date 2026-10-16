@@ -12,22 +12,6 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 配置Maven阿里云镜像
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-<settings>
-  <mirrors>
-    <mirror>
-      <id>aliyunmaven</id>
-      <mirrorOf>central</mirrorOf>
-      <name>阿里云中央仓库</name>
-      <url>https://maven.aliyun.com/repository/public</url>
-    </mirror>
-  </mirrors>
-</settings>
-EOF
-
       - name: 设置JDK17
         uses: actions/setup-java@v4
         with:
@@ -50,7 +34,7 @@ EOF
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 配置Node.js & 淘宝镜像
+      - name: 配置Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
