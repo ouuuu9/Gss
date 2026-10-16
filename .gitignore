@@ -1,17 +1,62 @@
+# IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VSCode
+.vscode/
+*.swp
+*.swo
+
+# Eclipse
+.classpath
+.project
+.settings/
+target/
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Gradle
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Spring Boot
+*.log
+*.gz
+*.tmp
+*.bak
+application-*.properties
+application-*.yml
+!application.yml
+!application.properties
+
+# Vue / Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+.env
+.env.local
+
+# ========== 你新增的自定义规则 ==========
 # 后端构建产物
 backend/target/
-*.class
-
+backend/target/*.class
 # 前端构建产物
 frontend/dist/
 frontend/node_modules/
-
-# IDE
-.vscode/
-.idea/
-*.iml
-*.ipr
-*.iws
 
 # 系统文件
 .DS_Store
