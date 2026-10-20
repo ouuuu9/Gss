@@ -6,7 +6,7 @@
           <el-icon :size="34"><Ship /></el-icon>
         </div>
         <h2>集装箱码头闸口预约与办单管理系统</h2>
-        <p>Container Gate Appointment &amp; Order Management System</p>
+        <p>集装箱码头闸口预约与办单管理平台</p>
       </div>
 
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="handleLogin">
