@@ -99,6 +99,8 @@ CREATE TABLE eir_order (
                    COMMENT '单证状态：CREATED已录入/DISPATCHED已派单/APPOINTED已预约/GATE_IN已进闸/GATE_OUT已出闸/DONE已完成/CANCELLED已作废',
     gate_in_time   DATETIME     DEFAULT NULL COMMENT '进闸时间',
     gate_out_time  DATETIME     DEFAULT NULL COMMENT '出闸时间',
+    dispatch_time  DATETIME     DEFAULT NULL COMMENT '派单时间（取消派单时清空）',
+    audit_time     DATETIME     DEFAULT NULL COMMENT '审单时间（审单完成时记录）',
     remark         VARCHAR(255) DEFAULT NULL COMMENT '备注',
     create_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

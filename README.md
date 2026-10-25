@@ -21,7 +21,7 @@ B/S 架构 Web 信息管理系统，模拟集装箱码头闸口无纸化作业�
 
 ## 三、数据库初始化
 
-1. 登录 MySQL，执行建库脚本（自动建库 `gss`、7 张表、种子数据）：
+1. 登录 MySQL，执行建库脚本（自动建库 `gss`、9 张表、种子数据）：
 
 ```bash
 mysql -u root -p < sql/gss.sql
@@ -88,12 +88,13 @@ npm run dev        # 启动开发服务器 -host
 
 1. **admin 登录** → 「EIR单证管理」→ 录入单证（选择业务类型与作业公司；或直接使用列表中初始单证）
 2. **company1 登录** → 「EIR单证管理」→ 对单证点【派单】，选择本公司司机与拖车
-   - 若单证为 **GR-F 还重单**，派单后自动生成一笔 50 元未缴费收费记录
-3. **company1 / 司机** → 「进港预约」→ 创建预约（选择已派单单证、预约日期）
-4. **company1**（仅还重单需要）→ 「收费管理」→ 单笔或勾选多笔【批量缴费】
+   - 若单证为 **GR-F 还重单**，派单后自动生成一笔 50 元未缴费收费记录；**PI-F 提重单**生成 80 元提重费
+3. **company1 / 司机** → 「进港预约」→ 创建预约（选择已派单单证、预约日期与时段）
+4. **company1**（仅收费单证需要）→ 「收费管理」→ 单笔或勾选多笔【批量缴费】
 5. **gate 登录** → 「闸口办单」→ 输入 IC 卡号（如 IC0001）点【进闸办单】
-   - 未预约 / 还重单未缴费 → 系统拦截并提示具体原因
+   - 无有效预约 → 系统拦截并提示具体原因
 6. 作业完成后输入同一 IC 卡号点【出闸办单】
+   - 费用未缴清 → 系统拦截，提示缴费后再放行
 7. **admin 登录** → EIR 列表点【审单】→ 单证完成
 8. 「收费报表」可按公司查看缴费笔数、金额与收缴率；「首页看板」查看统计
 
@@ -104,36 +105,46 @@ npm run dev        # 启动开发服务器 -host
 - **数据权限（后端强制，不依赖前端）**：
   - COMPANY 只能查询/操作本公司的单证、拖车、司机、收费数据
   - DRIVER 只能查询本人单证、创建/取消本人预约
-- **状态机校验**：状态流转规则全部写在 Service 层，每个写操作先校验前置状态，禁止越级
-- **收费规则**：固定 50 元/单，仅 GR-F 还重单在派单时生成；取消派单自动回滚收费记录
+- **状态机校验**：`EirStateMachine` 以状态转移表集中管理 7 状态 9 事件，所有写操作先经状态机校验，禁止越级；配套 40+ 单元测试
+- **并发防护**：`@Idempotent` 幂等注解（3 秒窗口）+ 全链路 CAS 条件更新（`WHERE status = 前置状态`），防止重复派单/重复刷卡/重复缴费
+- **预约防超约**：时段容量通过 `UPDATE ... WHERE booked_count < capacity` 单语句原子扣减，InnoDB 行锁保证并发正确
+- **AOP 三件套**：`@AuditLog` 操作审计（参数脱敏落库）、`@Idempotent` 防重复提交、`@RefreshScreen` 大屏实时刷新
+- **定时任务**：每 60 秒扫描超时未进闸的预约，自动释放名额并将单证回退为已派单
+- **收费规则**：GR-F 还重单 50 元/单、PI-F 提重单 80 元/单（`application.yml` 可配），派单时生成收费记录，取消派单自动回滚；**出闸前须缴清**
 
 ## 九、目录结构
 
 ```
 Gss/
-├── sql/gss.sql                 # 建库脚本（7表+注释+种子数据）
+├── sql/gss.sql                 # 建库脚本（9 表 + 注释 + 种子数据）
 ├── backend/                    # Spring Boot 后端（包名 com.gss）
 │   ├── pom.xml
 │   └── src/main/
 │       ├── java/com/gss/
 │       │   ├── GssApplication.java
-│       │   ├── common/         # Result / PageResult / Constants / 异常 / 全局异常处理
-│       │   ├── config/         # WebConfig / DataInitializer
+│       │   ├── common/         # Result / PageResult / Constants / 异常 / 全局异常处理 / Excel导出
+│       │   ├── config/         # WebConfig / WebSocketConfig / DataInitializer
 │       │   ├── security/       # JwtUtil / JwtInterceptor / RequireRole / UserContext
-│       │   ├── entity/         # 7 个实体
-│       │   ├── mapper/         # 7 个 Mapper 接口
+│       │   ├── annotation/     # @AuditLog / @Idempotent / @RefreshScreen
+│       │   ├── aspect/         # 审计 / 幂等 / 大屏刷新 三个切面
+│       │   ├── statemachine/   # EirEvent / EirStateMachine 状态机引擎
+│       │   ├── task/           # ApptReleaseTask 预约超时释放定时任务
+│       │   ├── websocket/      # 数据大屏 WebSocket 推送
+│       │   ├── entity/         # 实体
+│       │   ├── mapper/         # Mapper 接口
 │       │   ├── dto/            # 请求 DTO
-│       │   ├── service/        # 业务逻辑（状态机/数据权限/收费）
+│       │   ├── service/        # 业务逻辑（状态机/数据权限/收费/CAS）
 │       │   └── controller/     # REST 接口
 │       └── resources/
 │           ├── application.yml
-│           └── mapper/         # 7 个 MyBatis XML
+│           └── mapper/         # MyBatis XML
 └── frontend/                   # Vue3 前端
     └── src/
         ├── api/                # axios 封装与接口定义
-        ├── router/ store/ utils/ layout/
-        └── views/              # 10 个业务页面
+        ├── router/ store/ utils/ layout/ components/
+        └── views/              # 13 个业务页面
 ```
 
+## 十、更多文档
 
-test ci cd 2026-10-17
+系统设计说明书（架构、数据库、核心模块、并发设计、答辩演示脚本与常见问题）见 [docs/系统设计说明.md](docs/系统设计说明.md)。
