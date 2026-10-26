@@ -39,9 +39,6 @@ public interface AppointmentMapper {
     /** 更新预约状态 */
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
-    /** 有效预约总数（看板用） */
-    Long countActive();
-
     /** 条件更新预约状态（CAS：仅当前状态为 expectedStatus 时生效） */
     int updateStatusIf(@Param("id") Long id,
                        @Param("status") String status,

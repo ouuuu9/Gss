@@ -111,20 +111,12 @@
         </if>
     </update>
 
-    <delete id="deleteById">
-        DELETE FROM eir_order WHERE id = #{id}
-    </delete>
-
     <select id="countByStatus" resultType="java.lang.Long">
         SELECT COUNT(1) FROM eir_order
         WHERE status = #{status}
         <if test="companyId != null">
             AND company_id = #{companyId}
         </if>
-    </select>
-
-    <select id="selectByTractorId" resultType="com.gss.entity.EirOrder">
-        SELECT * FROM eir_order WHERE tractor_id = #{tractorId}
     </select>
 
     <select id="selectEarliestByTractorAndStatus" resultType="com.gss.entity.EirOrder">

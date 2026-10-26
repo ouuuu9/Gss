@@ -43,15 +43,9 @@ public interface EirOrderMapper {
     /** 更新单证状态及派单信息 */
     int updateStatus(EirOrder eirOrder);
 
-    /** 删除单证 */
-    int deleteById(@Param("id") Long id);
-
     /** 按状态统计数量（companyId 为空时统计全部） */
     Long countByStatus(@Param("status") String status,
                        @Param("companyId") Long companyId);
-
-    /** 按拖车ID查询全部单证（闸口刷卡定位单证用） */
-    List<EirOrder> selectByTractorId(@Param("tractorId") Long tractorId);
 
     /** 按拖车ID + 状态查询最早的一张单证（闸口刷卡定位用，条件下推 SQL） */
     EirOrder selectEarliestByTractorAndStatus(@Param("tractorId") Long tractorId,

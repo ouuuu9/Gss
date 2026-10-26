@@ -76,10 +76,6 @@
         UPDATE appointment SET status = #{status} WHERE id = #{id}
     </update>
 
-    <select id="countActive" resultType="java.lang.Long">
-        SELECT COUNT(1) FROM appointment WHERE status = 'ACTIVE'
-    </select>
-
     <update id="updateStatusIf">
         UPDATE appointment SET status = #{status}
         WHERE id = #{id} AND status = #{expectedStatus}

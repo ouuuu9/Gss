@@ -1,10 +1,13 @@
 package com.gss.service;
 
 import com.gss.common.BusinessException;
+import com.gss.common.Constants;
 import com.gss.common.PageResult;
 import com.gss.dto.TractorDTO;
 import com.gss.entity.Tractor;
 import com.gss.mapper.TractorMapper;
+import com.gss.security.LoginUser;
+import com.gss.security.UserContext;
 import com.gss.vo.TractorVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,6 +41,7 @@ public class TractorService {
         if (tractor == null) {
             throw new BusinessException("拖车不存在");
         }
+        checkOwnership(tractor);
         return tractor;
     }
 
@@ -60,6 +64,17 @@ public class TractorService {
     public void delete(Long id) {
         getById(id);
         tractorMapper.deleteById(id);
+    }
+
+    /**
+     * 数据权限：COMPANY 只能查看/修改/删除本公司拖车，防止按 ID 越权操作他公司档案
+     */
+    private void checkOwnership(Tractor tractor) {
+        LoginUser user = UserContext.require();
+        if (Constants.ROLE_COMPANY.equals(user.getRole())
+                && !tractor.getCompanyId().equals(user.getCompanyId())) {
+            throw new BusinessException("无权操作其他公司的拖车");
+        }
     }
 
     private void copy(Tractor tractor, TractorDTO dto) {

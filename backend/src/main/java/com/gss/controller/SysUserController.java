@@ -61,7 +61,7 @@ public class SysUserController {
     @PutMapping("/{id}")
     @AuditLog("修改用户")
     @Operation(summary = "修改用户")
-    public Result<Void> update(@PathVariable Long id, @RequestBody UserDTO dto) {
+    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody UserDTO dto) {
         sysUserService.update(id, dto);
         return Result.success();
     }

@@ -5,6 +5,8 @@ import com.gss.common.PageResult;
 import com.gss.dto.UserDTO;
 import com.gss.entity.SysUser;
 import com.gss.mapper.SysUserMapper;
+import com.gss.security.LoginUser;
+import com.gss.security.UserContext;
 import com.gss.vo.SysUserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -86,10 +88,17 @@ public class SysUserService {
     }
 
     /**
-     * 删除用户
+     * 删除用户（禁止删除当前登录账号、禁止删除最后一个管理员）
      */
     public void delete(Long id) {
-        mustExist(id);
+        SysUser user = mustExist(id);
+        LoginUser operator = UserContext.require();
+        if (user.getId().equals(operator.getUserId())) {
+            throw new BusinessException("不能删除当前登录账号");
+        }
+        if ("ADMIN".equals(user.getRole()) && sysUserMapper.countPage(null, "ADMIN", null) <= 1) {
+            throw new BusinessException("系统至少保留一个管理员账号");
+        }
         sysUserMapper.deleteById(id);
     }
 
@@ -117,6 +126,10 @@ public class SysUserService {
         boolean dockRole = "ADMIN".equals(role) || "GATE".equals(role);
         if (!dockRole && dto.getCompanyId() == null) {
             throw new BusinessException("请选择所属运输公司");
+        }
+        // 司机账号必须关联司机档案，否则预约时按 driverId 匹配会空指针
+        if ("DRIVER".equals(role) && dto.getDriverId() == null) {
+            throw new BusinessException("司机账号必须关联司机档案");
         }
         if (dockRole) {
             dto.setCompanyId(null);

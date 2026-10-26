@@ -46,6 +46,7 @@ public class FeeController {
      * 收费记录列表（COMPANY 自动限定本公司）
      */
     @GetMapping
+    @RequireRole({"ADMIN", "GATE", "COMPANY"})
     @Operation(summary = "分页查询收费记录")
     public Result<PageResult<FeeRecordVO>> page(@RequestParam(required = false) Integer page,
                                                 @RequestParam(required = false) Integer size,
@@ -61,7 +62,7 @@ public class FeeController {
      * 导出收费记录 Excel（按角色过滤数据，与列表查询一致）
      */
     @GetMapping("/export")
-    @RequireRole({"ADMIN", "GATE", "COMPANY", "DRIVER"})
+    @RequireRole({"ADMIN", "GATE", "COMPANY"})
     @Operation(summary = "导出收费记录Excel")
     public void exportExcel(@RequestParam(required = false) Integer payStatus,
                             @RequestParam(required = false) Long companyId,
@@ -126,6 +127,7 @@ public class FeeController {
      * 收费报表（按公司汇总）。COMPANY 仅本公司。
      */
     @GetMapping("/report")
+    @RequireRole({"ADMIN", "GATE", "COMPANY"})
     @Operation(summary = "收费报表（按公司汇总）")
     public Result<List<FeeReportVO>> report(@RequestParam(required = false) Long companyId) {
         var user = UserContext.require();

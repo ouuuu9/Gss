@@ -2,6 +2,8 @@ package com.gss.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gss.common.Result;
+import com.gss.entity.SysUser;
+import com.gss.mapper.SysUserMapper;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,6 +27,7 @@ import java.util.Arrays;
 public class JwtInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
+    private final SysUserMapper sysUserMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -51,6 +54,13 @@ public class JwtInterceptor implements HandlerInterceptor {
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("JWT 解析失败：{}", e.getMessage());
             writeError(response, 401, "登录凭证无效或已过期，请重新登录");
+            return false;
+        }
+
+        // 2.1 回查用户状态：被禁用/删除的账号，已发出的 token 立即失效
+        SysUser current = sysUserMapper.selectById(loginUser.getUserId());
+        if (current == null || current.getStatus() == null || current.getStatus() != 1) {
+            writeError(response, 401, "账号已被禁用或删除，请重新登录");
             return false;
         }
 

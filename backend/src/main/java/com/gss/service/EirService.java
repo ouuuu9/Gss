@@ -12,6 +12,7 @@ import com.gss.entity.EirOrder;
 import com.gss.entity.FeeRecord;
 import com.gss.entity.Tractor;
 import com.gss.mapper.AppointmentMapper;
+import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.DriverMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.FeeRecordMapper;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -51,6 +53,7 @@ public class EirService {
     private final TractorMapper tractorMapper;
     private final FeeRecordMapper feeMapper;
     private final AppointmentMapper appointmentMapper;
+    private final ApptSlotCapacityMapper slotCapacityMapper;
     private final EirStateMachine stateMachine;
 
     @Value("${gss.fee.amount}")
@@ -156,10 +159,14 @@ public class EirService {
             throw new BusinessException("车辆已进闸作业，单证不能作废");
         }
 
-        // 取消有效预约
+        // 取消有效预约：CAS 置为已取消成功后归还时段名额（防止与预约取消并发导致名额重复释放）
         Appointment activeAppt = appointmentMapper.selectActiveByEirId(id);
         if (activeAppt != null) {
-            appointmentMapper.updateStatus(activeAppt.getId(), Constants.APPT_CANCELLED);
+            int rows = appointmentMapper.updateStatusIf(activeAppt.getId(),
+                    Constants.APPT_CANCELLED, Constants.APPT_ACTIVE);
+            if (rows == 1 && StringUtils.hasText(activeAppt.getTimeSlot())) {
+                slotCapacityMapper.release(activeAppt.getApptDate(), activeAppt.getTimeSlot());
+            }
         }
 
         EirOrder update = new EirOrder();
@@ -167,7 +174,8 @@ public class EirService {
         update.setStatus(Constants.ST_CANCELLED);
         update.setTractorId(eir.getTractorId());
         update.setDriverId(eir.getDriverId());
-        eirMapper.updateStatus(update);
+        // CAS：仅当前状态与读取时一致才落库，与派单/进闸并发时作废失败并回滚
+        casStatus(update, eir.getStatus());
     }
 
     /**
@@ -265,7 +273,12 @@ public class EirService {
         update.setTractorId(null);
         casStatus(update, eir.getStatus());
 
-        // 回滚派单时生成的收费记录
+        // 已缴费的收费记录不能随取消派单一并删除，避免钱已收但记录消失、账实不符
+        FeeRecord fee = feeMapper.selectByEirId(id);
+        if (fee != null && fee.getPayStatus() != null && fee.getPayStatus() == 1) {
+            throw new BusinessException("该单证费用已缴纳，请先处理退费后再取消派单");
+        }
+        // 回滚派单时生成的未缴费收费记录
         feeMapper.deleteByEirId(id);
     }
 

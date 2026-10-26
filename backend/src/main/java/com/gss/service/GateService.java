@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -52,10 +53,13 @@ public class GateService {
             throw new BusinessException("该卡对应车辆没有已预约待进闸的单证，禁止进闸");
         }
 
-        // 校验有效预约
+        // 校验有效预约（必须为当天预约，防止提前/过期进闸）
         Appointment activeAppt = appointmentMapper.selectActiveByEirId(eir.getId());
         if (activeAppt == null) {
             throw new BusinessException("该单证无有效进港预约，禁止进闸");
+        }
+        if (!LocalDate.now().equals(activeAppt.getApptDate())) {
+            throw new BusinessException("预约日期为 " + activeAppt.getApptDate() + "，仅当天预约可进闸");
         }
 
         // 校验通过，进闸办单（CAS：仅仍为 APPOINTED 才生效，防止重复刷卡）

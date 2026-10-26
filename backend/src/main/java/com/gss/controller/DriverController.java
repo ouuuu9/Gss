@@ -1,12 +1,12 @@
 package com.gss.controller;
 
+import com.gss.common.CompanyScope;
 import com.gss.common.PageResult;
 import com.gss.common.Result;
 import com.gss.dto.DriverDTO;
 import com.gss.entity.Driver;
 import com.gss.annotation.AuditLog;
 import com.gss.security.RequireRole;
-import com.gss.security.UserContext;
 import com.gss.service.DriverService;
 import com.gss.vo.DriverVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,7 +27,7 @@ import java.util.List;
 
 /**
  * 司机管理接口。
- * 数据权限：COMPANY 只能查询/维护本公司司机（companyId 后端强制覆盖）
+ * 数据权限：COMPANY 只能查询/维护本公司司机（companyId 后端强制覆盖，越权 ID 由 Service 拒绝）
  */
 @RestController
 @RequestMapping("/api/drivers")
@@ -44,20 +44,21 @@ public class DriverController {
                                              @RequestParam(required = false) String name,
                                              @RequestParam(required = false) String phone,
                                              @RequestParam(required = false) Long companyId) {
-        Long queryCompanyId = resolveCompanyId(companyId);
-        return Result.success(driverService.page(page, size, name, phone, queryCompanyId));
+        return Result.success(driverService.page(page, size, name, phone, CompanyScope.resolve(companyId)));
     }
 
     /**
-     * 全部司机（派单下拉用；COMPANY 场景由前端先按公司过滤，后端兜底权限可在此扩展）
+     * 全部司机（派单下拉用；COMPANY 只返回本公司司机）
      */
     @GetMapping("/all")
+    @RequireRole({"ADMIN", "GATE", "COMPANY"})
     @Operation(summary = "查询全部司机（派单下拉用）")
-    public Result<List<Driver>> all() {
+    public Result<List<DriverVO>> all() {
         return Result.success(driverService.listAll());
     }
 
     @GetMapping("/{id}")
+    @RequireRole({"ADMIN", "GATE", "COMPANY"})
     @Operation(summary = "查询司机详情")
     public Result<Driver> detail(@PathVariable Long id) {
         return Result.success(driverService.getById(id));
@@ -68,7 +69,7 @@ public class DriverController {
     @AuditLog("新增司机")
     @Operation(summary = "新增司机")
     public Result<Void> create(@Valid @RequestBody DriverDTO dto) {
-        forceCompanyIfNeeded(dto);
+        dto.setCompanyId(CompanyScope.resolve(dto.getCompanyId()));
         driverService.create(dto);
         return Result.success();
     }
@@ -78,7 +79,7 @@ public class DriverController {
     @AuditLog("修改司机")
     @Operation(summary = "修改司机")
     public Result<Void> update(@PathVariable Long id, @Valid @RequestBody DriverDTO dto) {
-        forceCompanyIfNeeded(dto);
+        dto.setCompanyId(CompanyScope.resolve(dto.getCompanyId()));
         driverService.update(id, dto);
         return Result.success();
     }
@@ -90,20 +91,5 @@ public class DriverController {
     public Result<Void> delete(@PathVariable Long id) {
         driverService.delete(id);
         return Result.success();
-    }
-
-    private Long resolveCompanyId(Long paramCompanyId) {
-        var user = UserContext.require();
-        if ("COMPANY".equals(user.getRole())) {
-            return user.getCompanyId();
-        }
-        return paramCompanyId;
-    }
-
-    private void forceCompanyIfNeeded(DriverDTO dto) {
-        var user = UserContext.require();
-        if ("COMPANY".equals(user.getRole())) {
-            dto.setCompanyId(user.getCompanyId());
-        }
     }
 }
