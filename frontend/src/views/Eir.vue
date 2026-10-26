@@ -88,16 +88,7 @@
       </el-table-column>
     </el-table>
 
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      class="pager"
-      @size-change="loadData"
-      @current-change="loadData"
-    />
+    <AppPager :query="query" :total="total" @change="loadData" />
 
     <!-- 录入/修改单证弹窗 -->
     <el-dialog v-model="eirDialog" :title="eirForm.id ? '修改单证' : '录入EIR单证'" width="560px">
@@ -187,6 +178,8 @@ import { useUserStore } from '@/store/user'
 import { EIR_STATUS, BUSINESS_TYPE, dictLabel, dictType } from '@/utils/dict'
 import { exportExcel } from '@/utils/download'
 import ApptBookDialog from '@/components/ApptBookDialog.vue'
+import { useCrudPage } from '@/utils/useCrudPage'
+import AppPager from '@/components/AppPager.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -194,15 +187,12 @@ const isAdmin = computed(() => userStore.role === 'ADMIN')
 const isCompany = computed(() => userStore.role === 'COMPANY')
 const isDriver = computed(() => userStore.role === 'DRIVER')
 
-const loading = ref(false)
 const submitting = ref(false)
 const exporting = ref(false)
-const tableData = ref([])
-const total = ref(0)
 const companies = ref([])
 
-const query = reactive({
-  page: 1, size: 10, eirNo: '', status: '', businessType: '', companyId: null
+const { loading, tableData, total, query, loadData, resetQuery } = useCrudPage(eirApi, {
+  defaultQuery: { eirNo: '', status: '', businessType: '', companyId: null }
 })
 
 /* ---------- 单证弹窗 ---------- */
@@ -237,26 +227,6 @@ function canSelectCreated(row) {
 
 function onSelectionChange(rows) {
   selectedRows.value = rows
-}
-
-async function loadData() {
-  loading.value = true
-  try {
-    const data = await eirApi.page(query)
-    tableData.value = data.rows
-    total.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-function resetQuery() {
-  query.eirNo = ''
-  query.status = ''
-  query.businessType = ''
-  query.companyId = null
-  query.page = 1
-  loadData()
 }
 
 function openEirDialog(row) {
@@ -406,10 +376,3 @@ async function loadBaseData() {
 loadBaseData()
 loadData()
 </script>
-
-<style scoped>
-.pager {
-  margin-top: 16px;
-  justify-content: flex-end;
-}
-</style>

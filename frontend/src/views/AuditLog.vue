@@ -28,7 +28,7 @@
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="Search" @click="loadData">查询</el-button>
-        <el-button :icon="RefreshLeft" @click="resetQuery">重置</el-button>
+        <el-button :icon="RefreshLeft" @click="resetQuery(() => dateRange = null)">重置</el-button>
       </el-form-item>
     </el-form>
 
@@ -70,71 +70,30 @@
       <el-table-column prop="createTime" label="操作时间" width="170" />
     </el-table>
 
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      class="pager"
-      @size-change="loadData"
-      @current-change="loadData"
-    />
+    <AppPager :query="query" :total="total" @change="loadData" />
   </el-card>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 import { Search, RefreshLeft } from '@element-plus/icons-vue'
 import { auditApi } from '@/api'
 import { ROLE, dictLabel } from '@/utils/dict'
+import { useCrudPage } from '@/utils/useCrudPage'
+import AppPager from '@/components/AppPager.vue'
 
-const loading = ref(false)
-const tableData = ref([])
-const total = ref(0)
+const { loading, tableData, total, query, loadData, resetQuery } = useCrudPage(auditApi, {
+  defaultQuery: { username: '', operation: '', success: null, startTime: null, endTime: null }
+})
+
 const dateRange = ref(null)
-const query = reactive({ page: 1, size: 10, username: '', operation: '', success: null, startTime: null, endTime: null })
 
 function handleDateChange(val) {
-  if (val && val.length === 2) {
-    query.startTime = val[0]
-    query.endTime = val[1]
-  } else {
-    query.startTime = null
-    query.endTime = null
-  }
+  query.startTime = val?.[0] ?? null
+  query.endTime = val?.[1] ?? null
   query.page = 1
-  loadData()
-}
-
-async function loadData() {
-  loading.value = true
-  try {
-    const data = await auditApi.page(query)
-    tableData.value = data.rows
-    total.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-function resetQuery() {
-  query.username = ''
-  query.operation = ''
-  query.success = null
-  query.startTime = null
-  query.endTime = null
-  query.page = 1
-  dateRange.value = null
   loadData()
 }
 
 loadData()
 </script>
-
-<style scoped>
-.pager {
-  margin-top: 16px;
-  justify-content: flex-end;
-}
-</style>

@@ -9,7 +9,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * 简易 Excel 导出工具
@@ -88,6 +90,20 @@ public class ExcelExporter {
         exporter.writeRows(data);
         String fileName = fileNamePrefix + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         exporter.writeToResponse(response, fileName);
+    }
+
+    /**
+     * 一站式导出（泛型行映射）：rows 中每个元素经 rowMapper 转为一行数据，
+     * 调用方无需手工构建 Object[] 列表
+     */
+    public static <T> void export(String sheetName, String[] headers, List<T> rows,
+                                  Function<T, Object[]> rowMapper, String fileNamePrefix,
+                                  HttpServletResponse response) throws IOException {
+        List<Object[]> data = new ArrayList<>(rows.size());
+        for (T row : rows) {
+            data.add(rowMapper.apply(row));
+        }
+        export(sheetName, headers, data, fileNamePrefix, response);
     }
 
     /* ==================== 导出字典翻译（英文码 → 中文文案） ==================== */

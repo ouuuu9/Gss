@@ -3,6 +3,7 @@ package com.gss.controller;
 import com.gss.annotation.AuditLog;
 import com.gss.annotation.Idempotent;
 import com.gss.annotation.RefreshScreen;
+import com.gss.common.CompanyScope;
 import com.gss.common.ExcelExporter;
 import com.gss.common.PageResult;
 import com.gss.common.Result;
@@ -25,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -53,17 +53,9 @@ public class AppointmentController {
                                                   @RequestParam(required = false) String apptDate,
                                                   @RequestParam(required = false) Long driverId,
                                                   @RequestParam(required = false) Long companyId) {
-        var user = UserContext.require();
-        Long queryDriverId = driverId;
-        Long queryCompanyId = companyId;
-        if ("DRIVER".equals(user.getRole())) {
-            queryDriverId = user.getDriverId();
-            queryCompanyId = null;
-        } else if ("COMPANY".equals(user.getRole())) {
-            queryCompanyId = user.getCompanyId();
-        }
+        var scope = CompanyScope.of(companyId, driverId);
         return Result.success(appointmentService.page(page, size, eirNo, status, apptDate,
-                queryDriverId, queryCompanyId));
+                scope.driverId(), scope.companyId()));
     }
 
     /**
@@ -74,36 +66,23 @@ public class AppointmentController {
     @Operation(summary = "导出预约记录Excel")
     public void exportExcel(@RequestParam(required = false) String status,
                             HttpServletResponse response) throws IOException {
-        var user = UserContext.require();
-        Long queryDriverId = null;
-        Long queryCompanyId = null;
-        if ("DRIVER".equals(user.getRole())) {
-            queryDriverId = user.getDriverId();
-        } else if ("COMPANY".equals(user.getRole())) {
-            queryCompanyId = user.getCompanyId();
-        }
+        var scope = CompanyScope.of(null, null);
         // 复用分页查询，取一个足够大的 size 代替全量查询
-        var pageResult = appointmentService.page(1, 10000, null, status, null,
-                queryDriverId, queryCompanyId);
-        List<AppointmentVO> rows = pageResult.getRows();
+        List<AppointmentVO> rows = appointmentService.page(1, 10000, null, status, null,
+                scope.driverId(), scope.companyId()).getRows();
 
         String[] headers = {"预约编号", "单证编号", "拖车号", "司机姓名", "预约日期",
                 "预约时段", "状态", "预约时间"};
-        List<Object[]> data = new ArrayList<>(rows.size());
-        for (AppointmentVO vo : rows) {
-            data.add(new Object[]{
-                    vo.getId(),
-                    vo.getEirNo(),
-                    vo.getPlateNo(),
-                    vo.getDriverName(),
-                    vo.getApptDate(),
-                    vo.getTimeSlot(),
-                    ExcelExporter.apptStatusLabel(vo.getStatus()),
-                    vo.getCreateTime()
-            });
-        }
-
-        ExcelExporter.export("预约记录", headers, data, "预约记录_导出", response);
+        ExcelExporter.export("预约记录", headers, rows, vo -> new Object[]{
+                vo.getId(),
+                vo.getEirNo(),
+                vo.getPlateNo(),
+                vo.getDriverName(),
+                vo.getApptDate(),
+                vo.getTimeSlot(),
+                ExcelExporter.apptStatusLabel(vo.getStatus()),
+                vo.getCreateTime()
+        }, "预约记录_导出", response);
     }
 
     /**

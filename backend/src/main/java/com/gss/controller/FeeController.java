@@ -3,12 +3,12 @@ package com.gss.controller;
 import com.gss.annotation.AuditLog;
 import com.gss.annotation.Idempotent;
 import com.gss.annotation.RefreshScreen;
+import com.gss.common.CompanyScope;
 import com.gss.common.ExcelExporter;
 import com.gss.common.PageResult;
 import com.gss.common.Result;
 import com.gss.dto.BatchPayDTO;
 import com.gss.security.RequireRole;
-import com.gss.security.UserContext;
 import com.gss.service.FeeService;
 import com.gss.vo.FeeRecordVO;
 import com.gss.vo.FeeReportVO;
@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,9 +52,7 @@ public class FeeController {
                                                 @RequestParam(required = false) String eirNo,
                                                 @RequestParam(required = false) Integer payStatus,
                                                 @RequestParam(required = false) Long companyId) {
-        var user = UserContext.require();
-        Long queryCompanyId = "COMPANY".equals(user.getRole()) ? user.getCompanyId() : companyId;
-        return Result.success(feeService.page(page, size, eirNo, payStatus, queryCompanyId));
+        return Result.success(feeService.page(page, size, eirNo, payStatus, CompanyScope.resolve(companyId)));
     }
 
     /**
@@ -67,30 +64,22 @@ public class FeeController {
     public void exportExcel(@RequestParam(required = false) Integer payStatus,
                             @RequestParam(required = false) Long companyId,
                             HttpServletResponse response) throws IOException {
-        var user = UserContext.require();
-        Long queryCompanyId = "COMPANY".equals(user.getRole()) ? user.getCompanyId() : companyId;
         // 复用分页查询，取一个足够大的 size 代替全量查询
-        var pageResult = feeService.page(1, 10000, null, payStatus, queryCompanyId);
-        List<FeeRecordVO> rows = pageResult.getRows();
+        List<FeeRecordVO> rows = feeService.page(1, 10000, null, payStatus, CompanyScope.resolve(companyId)).getRows();
 
         String[] headers = {"收费编号", "单证编号", "公司名称", "业务类型", "金额",
                 "缴费状态", "操作人", "缴费时间", "创建时间"};
-        List<Object[]> data = new ArrayList<>(rows.size());
-        for (FeeRecordVO vo : rows) {
-            data.add(new Object[]{
-                    vo.getId(),
-                    vo.getEirNo(),
-                    vo.getCompanyName(),
-                    ExcelExporter.bizTypeLabel(vo.getBusinessType()),
-                    vo.getAmount(),
-                    ExcelExporter.payStatusLabel(vo.getPayStatus()),
-                    vo.getOperator(),
-                    vo.getPayTime(),
-                    vo.getCreateTime()
-            });
-        }
-
-        ExcelExporter.export("收费记录", headers, data, "收费记录_导出", response);
+        ExcelExporter.export("收费记录", headers, rows, vo -> new Object[]{
+                vo.getId(),
+                vo.getEirNo(),
+                vo.getCompanyName(),
+                ExcelExporter.bizTypeLabel(vo.getBusinessType()),
+                vo.getAmount(),
+                ExcelExporter.payStatusLabel(vo.getPayStatus()),
+                vo.getOperator(),
+                vo.getPayTime(),
+                vo.getCreateTime()
+        }, "收费记录_导出", response);
     }
 
     /**
@@ -130,8 +119,6 @@ public class FeeController {
     @RequireRole({"ADMIN", "GATE", "COMPANY"})
     @Operation(summary = "收费报表（按公司汇总）")
     public Result<List<FeeReportVO>> report(@RequestParam(required = false) Long companyId) {
-        var user = UserContext.require();
-        Long queryCompanyId = "COMPANY".equals(user.getRole()) ? user.getCompanyId() : companyId;
-        return Result.success(feeService.report(queryCompanyId));
+        return Result.success(feeService.report(CompanyScope.resolve(companyId)));
     }
 }

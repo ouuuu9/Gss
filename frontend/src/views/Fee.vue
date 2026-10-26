@@ -74,21 +74,12 @@
       </el-table-column>
     </el-table>
 
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      class="pager"
-      @size-change="loadData"
-      @current-change="loadData"
-    />
+    <AppPager :query="query" :total="total" @change="loadData" />
   </el-card>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, RefreshLeft, Coin, Download } from '@element-plus/icons-vue'
 import { feeApi, companyApi } from '@/api'
@@ -96,20 +87,19 @@ import { useUserStore } from '@/store/user'
 import { BUSINESS_TYPE, dictLabel, dictType } from '@/utils/dict'
 import { exportExcel } from '@/utils/download'
 import { formatTime } from '@/utils/format'
+import { useCrudPage } from '@/utils/useCrudPage'
+import AppPager from '@/components/AppPager.vue'
 
 const userStore = useUserStore()
 const isAdmin = computed(() => userStore.role === 'ADMIN')
 const isCompany = computed(() => userStore.role === 'COMPANY')
 
-const loading = ref(false)
 const exporting = ref(false)
-const tableData = ref([])
-const total = ref(0)
 const companies = ref([])
 const selectedRows = ref([])
 
-const query = reactive({
-  page: 1, size: 10, eirNo: '', payStatus: null, companyId: null
+const { loading, tableData, total, query, loadData, resetQuery } = useCrudPage(feeApi, {
+  defaultQuery: { eirNo: '', payStatus: null, companyId: null }
 })
 
 const selectedIds = computed(() => selectedRows.value.map((r) => r.id))
@@ -121,25 +111,6 @@ function canSelect(row) {
 
 function onSelectionChange(rows) {
   selectedRows.value = rows
-}
-
-async function loadData() {
-  loading.value = true
-  try {
-    const data = await feeApi.page(query)
-    tableData.value = data.rows
-    total.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-function resetQuery() {
-  query.eirNo = ''
-  query.payStatus = null
-  query.companyId = null
-  query.page = 1
-  loadData()
 }
 
 async function handlePay(row) {
@@ -183,10 +154,5 @@ loadData()
 .amount {
   font-weight: bold;
   color: #f56c6c;
-}
-
-.pager {
-  margin-top: 16px;
-  justify-content: flex-end;
 }
 </style>

@@ -3,6 +3,7 @@ package com.gss.controller;
 import com.gss.annotation.AuditLog;
 import com.gss.annotation.Idempotent;
 import com.gss.annotation.RefreshScreen;
+import com.gss.common.CompanyScope;
 import com.gss.common.ExcelExporter;
 import com.gss.common.PageResult;
 import com.gss.common.Result;
@@ -29,7 +30,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -56,18 +56,9 @@ public class EirController {
                                                @RequestParam(required = false) String businessType,
                                                @RequestParam(required = false) Long companyId,
                                                @RequestParam(required = false) Long driverId) {
-        var user = UserContext.require();
-        Long queryCompanyId = companyId;
-        Long queryDriverId = driverId;
-        if ("COMPANY".equals(user.getRole())) {
-            queryCompanyId = user.getCompanyId();
-        } else if ("DRIVER".equals(user.getRole())) {
-            // 司机只能看到自己名下的单证
-            queryDriverId = user.getDriverId();
-            queryCompanyId = null;
-        }
+        var scope = CompanyScope.of(companyId, driverId);
         return Result.success(eirService.page(page, size, eirNo, status, businessType,
-                queryCompanyId, queryDriverId));
+                scope.companyId(), scope.driverId()));
     }
 
     /**
@@ -80,44 +71,30 @@ public class EirController {
                             @RequestParam(required = false) String bizType,
                             @RequestParam(required = false) Long companyId,
                             HttpServletResponse response) throws IOException {
-        var user = UserContext.require();
-        Long queryCompanyId = companyId;
-        Long queryDriverId = null;
-        if ("COMPANY".equals(user.getRole())) {
-            queryCompanyId = user.getCompanyId();
-        } else if ("DRIVER".equals(user.getRole())) {
-            queryDriverId = user.getDriverId();
-            queryCompanyId = null;
-        }
+        var scope = CompanyScope.of(companyId, null);
         // 复用分页查询，取一个足够大的 size 代替全量查询
-        var pageResult = eirService.page(1, 10000, null, status, bizType,
-                queryCompanyId, queryDriverId);
-        List<EirOrderVO> rows = pageResult.getRows();
+        List<EirOrderVO> rows = eirService.page(1, 10000, null, status, bizType,
+                scope.companyId(), scope.driverId()).getRows();
 
         String[] headers = {"单证编号", "业务类型", "箱号", "箱型", "公司名称", "拖车号",
                 "司机姓名", "状态", "录入时间", "派单时间", "预约时间", "进闸时间",
                 "出闸时间", "审单时间"};
-        List<Object[]> data = new ArrayList<>(rows.size());
-        for (EirOrderVO vo : rows) {
-            data.add(new Object[]{
-                    vo.getEirNo(),
-                    ExcelExporter.bizTypeLabel(vo.getBusinessType()),
-                    vo.getContainerNo(),
-                    vo.getContainerSize() == null ? null : vo.getContainerSize() + (vo.getContainerType() == null ? "" : vo.getContainerType()),
-                    vo.getCompanyName(),
-                    vo.getPlateNo(),
-                    vo.getDriverName(),
-                    ExcelExporter.eirStatusLabel(vo.getStatus()),
-                    vo.getCreateTime(),
-                    vo.getDispatchTime(),
-                    vo.getApptTime(),
-                    vo.getGateInTime(),
-                    vo.getGateOutTime(),
-                    vo.getAuditTime()
-            });
-        }
-
-        ExcelExporter.export("EIR单证", headers, data, "EIR单证_导出", response);
+        ExcelExporter.export("EIR单证", headers, rows, vo -> new Object[]{
+                vo.getEirNo(),
+                ExcelExporter.bizTypeLabel(vo.getBusinessType()),
+                vo.getContainerNo(),
+                vo.getContainerSize() == null ? null : vo.getContainerSize() + (vo.getContainerType() == null ? "" : vo.getContainerType()),
+                vo.getCompanyName(),
+                vo.getPlateNo(),
+                vo.getDriverName(),
+                ExcelExporter.eirStatusLabel(vo.getStatus()),
+                vo.getCreateTime(),
+                vo.getDispatchTime(),
+                vo.getApptTime(),
+                vo.getGateInTime(),
+                vo.getGateOutTime(),
+                vo.getAuditTime()
+        }, "EIR单证_导出", response);
     }
 
     @GetMapping("/{id}")

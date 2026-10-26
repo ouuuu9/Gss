@@ -45,16 +45,7 @@
       </el-table-column>
     </el-table>
 
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      class="pager"
-      @size-change="loadData"
-      @current-change="loadData"
-    />
+    <AppPager :query="query" :total="total" @change="loadData" />
 
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑拖车' : '新增拖车'" width="520px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
@@ -91,90 +82,33 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed } from 'vue'
 import { Search, RefreshLeft, Plus } from '@element-plus/icons-vue'
 import { tractorApi, companyApi } from '@/api'
 import { useUserStore } from '@/store/user'
+import { useCrudPage } from '@/utils/useCrudPage'
+import AppPager from '@/components/AppPager.vue'
 
 const userStore = useUserStore()
 const isAdmin = computed(() => userStore.role === 'ADMIN')
 
-const loading = ref(false)
-const submitting = ref(false)
-const tableData = ref([])
-const total = ref(0)
-const dialogVisible = ref(false)
-const formRef = ref()
 const companies = ref([])
 
-const query = reactive({ page: 1, size: 10, plateNo: '', icCardNo: '', companyId: null })
-const defaultForm = () => ({
-  id: null, plateNo: '', frameNo: '', icCardNo: '', axleNum: 4,
-  companyId: isAdmin.value ? null : userStore.user.companyId, status: 1
+const {
+  loading, submitting, tableData, total, dialogVisible, formRef, query, form,
+  loadData, resetQuery, openDialog, handleSubmit, handleDelete
+} = useCrudPage(tractorApi, {
+  defaultQuery: { plateNo: '', icCardNo: '', companyId: null },
+  defaultForm: () => ({
+    id: null, plateNo: '', frameNo: '', icCardNo: '', axleNum: 4,
+    companyId: isAdmin.value ? null : userStore.user.companyId, status: 1
+  })
 })
-const form = reactive(defaultForm())
 
 const rules = {
   plateNo: [{ required: true, message: '请输入车牌号', trigger: 'blur' }],
   icCardNo: [{ required: true, message: '请输入IC卡编号', trigger: 'blur' }],
   companyId: [{ required: true, message: '请选择所属公司', trigger: 'change' }]
-}
-
-async function loadData() {
-  loading.value = true
-  try {
-    const data = await tractorApi.page(query)
-    tableData.value = data.rows
-    total.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-function resetQuery() {
-  query.plateNo = ''
-  query.icCardNo = ''
-  query.companyId = null
-  query.page = 1
-  loadData()
-}
-
-function openDialog(row) {
-  Object.assign(form, defaultForm())
-  if (row) {
-    Object.assign(form, {
-      id: row.id, plateNo: row.plateNo, frameNo: row.frameNo, icCardNo: row.icCardNo,
-      axleNum: row.axleNum, companyId: row.companyId, status: row.status
-    })
-  }
-  dialogVisible.value = true
-}
-
-async function handleSubmit() {
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    submitting.value = true
-    try {
-      if (form.id) {
-        await tractorApi.update(form.id, form)
-        ElMessage.success('修改成功')
-      } else {
-        await tractorApi.create(form)
-        ElMessage.success('新增成功')
-      }
-      dialogVisible.value = false
-      loadData()
-    } finally {
-      submitting.value = false
-    }
-  })
-}
-
-async function handleDelete(row) {
-  await tractorApi.delete(row.id)
-  ElMessage.success('删除成功')
-  loadData()
 }
 
 async function loadCompanies() {
@@ -184,10 +118,3 @@ async function loadCompanies() {
 loadCompanies()
 loadData()
 </script>
-
-<style scoped>
-.pager {
-  margin-top: 16px;
-  justify-content: flex-end;
-}
-</style>

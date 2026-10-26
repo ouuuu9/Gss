@@ -55,16 +55,7 @@
       </el-table-column>
     </el-table>
 
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      class="pager"
-      @size-change="loadData"
-      @current-change="loadData"
-    />
+    <AppPager :query="query" :total="total" @change="loadData" />
 
     <!-- 创建预约弹窗（共用组件，从可预约单证中选择） -->
     <appt-book-dialog v-model:visible="createVisible" :eir-options="bookableEirs" @success="loadData" />
@@ -72,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, RefreshLeft, Plus, Download } from '@element-plus/icons-vue'
 import { apptApi, eirApi } from '@/api'
@@ -80,43 +71,25 @@ import { useUserStore } from '@/store/user'
 import { APPT_STATUS, BUSINESS_TYPE, dictLabel, dictType } from '@/utils/dict'
 import { exportExcel } from '@/utils/download'
 import ApptBookDialog from '@/components/ApptBookDialog.vue'
+import { useCrudPage } from '@/utils/useCrudPage'
+import AppPager from '@/components/AppPager.vue'
 
 const userStore = useUserStore()
 const isDriver = computed(() => userStore.role === 'DRIVER')
 const isAdmin = computed(() => userStore.role === 'ADMIN')
 
-const loading = ref(false)
 const exporting = ref(false)
-const tableData = ref([])
-const total = ref(0)
 const createVisible = ref(false)
 const bookableEirs = ref([])
 
-const query = reactive({ page: 1, size: 10, eirNo: '', status: '', apptDate: '' })
+const { loading, tableData, total, query, loadData, resetQuery } = useCrudPage(apptApi, {
+  defaultQuery: { eirNo: '', status: '', apptDate: '' }
+})
 
 async function handleExport() {
   exporting.value = true
   await exportExcel(apptApi.export, { status: query.status }, '预约记录导出.xlsx')
   exporting.value = false
-}
-
-async function loadData() {
-  loading.value = true
-  try {
-    const data = await apptApi.page(query)
-    tableData.value = data.rows
-    total.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-function resetQuery() {
-  query.eirNo = ''
-  query.status = ''
-  query.apptDate = ''
-  query.page = 1
-  loadData()
 }
 
 async function openCreateDialog() {
@@ -141,10 +114,3 @@ async function handleCancel(row) {
 
 loadData()
 </script>
-
-<style scoped>
-.pager {
-  margin-top: 16px;
-  justify-content: flex-end;
-}
-</style>

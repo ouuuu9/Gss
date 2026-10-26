@@ -40,8 +40,10 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/gss?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: 你的MySQL密码
+    password: ${DB_PASSWORD:123456}
 ```
+
+数据库密码与 JWT 密钥均通过环境变量注入（`DB_PASSWORD` / `JWT_SECRET`），配置文件中不再明文存储；不设环境变量时数据库密码默认 `123456`。Windows PowerShell 设置示例：`$env:DB_PASSWORD='你的密码'`
 
 2. 启动（任选一种方式）：
 
@@ -105,7 +107,7 @@ npm run dev        # 启动开发服务器 -host
 - **数据权限（后端强制，不依赖前端）**：
   - COMPANY 只能查询/操作本公司的单证、拖车、司机、收费数据
   - DRIVER 只能查询本人单证、创建/取消本人预约
-- **状态机校验**：`EirStateMachine` 以状态转移表集中管理 7 状态 9 事件，所有写操作先经状态机校验，禁止越级；配套 40+ 单元测试
+- **状态机校验**：`EirStateMachine` 以状态转移表集中管理 7 状态 9 事件，所有写操作先经状态机校验，禁止越级；配套 49 个单元测试（状态机 + 数据权限 + 角色矩阵）
 - **并发防护**：`@Idempotent` 幂等注解（3 秒窗口）+ 全链路 CAS 条件更新（`WHERE status = 前置状态`），防止重复派单/重复刷卡/重复缴费
 - **预约防超约**：时段容量通过 `UPDATE ... WHERE booked_count < capacity` 单语句原子扣减，InnoDB 行锁保证并发正确
 - **AOP 三件套**：`@AuditLog` 操作审计（参数脱敏落库）、`@Idempotent` 防重复提交、`@RefreshScreen` 大屏实时刷新
@@ -122,7 +124,7 @@ Gss/
 │   └── src/main/
 │       ├── java/com/gss/
 │       │   ├── GssApplication.java
-│       │   ├── common/         # Result / PageResult / Constants / 异常 / 全局异常处理 / Excel导出
+│       │   ├── common/         # Result / PageResult / Constants / CompanyScope / 异常 / 全局异常处理 / Excel导出
 │       │   ├── config/         # WebConfig / WebSocketConfig / DataInitializer
 │       │   ├── security/       # JwtUtil / JwtInterceptor / RequireRole / UserContext
 │       │   ├── annotation/     # @AuditLog / @Idempotent / @RefreshScreen
@@ -141,7 +143,7 @@ Gss/
 └── frontend/                   # Vue3 前端
     └── src/
         ├── api/                # axios 封装与接口定义
-        ├── router/ store/ utils/ layout/ components/
+        ├── router/ store/ utils(含 useCrudPage)/ layout/ components(含 AppPager)/
         └── views/              # 13 个业务页面
 ```
 

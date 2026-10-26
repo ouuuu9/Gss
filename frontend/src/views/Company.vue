@@ -42,16 +42,7 @@
       </el-table-column>
     </el-table>
 
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next, jumper"
-      class="pager"
-      @size-change="loadData"
-      @current-change="loadData"
-    />
+    <AppPager :query="query" :total="total" @change="loadData" />
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑运输公司' : '新增运输公司'" width="500px">
@@ -84,92 +75,23 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Search, RefreshLeft, Plus } from '@element-plus/icons-vue'
 import { companyApi } from '@/api'
+import { useCrudPage } from '@/utils/useCrudPage'
+import AppPager from '@/components/AppPager.vue'
 
-const loading = ref(false)
-const submitting = ref(false)
-const tableData = ref([])
-const total = ref(0)
-const dialogVisible = ref(false)
-const formRef = ref()
-
-const query = reactive({ page: 1, size: 10, name: '', code: '' })
-const defaultForm = () => ({ id: null, code: '', name: '', contact: '', phone: '', status: 1 })
-const form = reactive(defaultForm())
+const {
+  loading, submitting, tableData, total, dialogVisible, formRef, query, form,
+  loadData, resetQuery, openDialog, handleSubmit, handleDelete
+} = useCrudPage(companyApi, {
+  defaultQuery: { name: '', code: '' },
+  defaultForm: () => ({ id: null, code: '', name: '', contact: '', phone: '', status: 1 })
+})
 
 const rules = {
   code: [{ required: true, message: '请输入公司编码', trigger: 'blur' }],
   name: [{ required: true, message: '请输入公司名称', trigger: 'blur' }]
 }
 
-async function loadData() {
-  loading.value = true
-  try {
-    const data = await companyApi.page(query)
-    tableData.value = data.rows
-    total.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-function resetQuery() {
-  query.name = ''
-  query.code = ''
-  query.page = 1
-  loadData()
-}
-
-function openDialog(row) {
-  Object.assign(form, defaultForm())
-  if (row) {
-    Object.assign(form, {
-      id: row.id,
-      code: row.code,
-      name: row.name,
-      contact: row.contact,
-      phone: row.phone,
-      status: row.status
-    })
-  }
-  dialogVisible.value = true
-}
-
-async function handleSubmit() {
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    submitting.value = true
-    try {
-      if (form.id) {
-        await companyApi.update(form.id, form)
-        ElMessage.success('修改成功')
-      } else {
-        await companyApi.create(form)
-        ElMessage.success('新增成功')
-      }
-      dialogVisible.value = false
-      loadData()
-    } finally {
-      submitting.value = false
-    }
-  })
-}
-
-async function handleDelete(row) {
-  await companyApi.delete(row.id)
-  ElMessage.success('删除成功')
-  loadData()
-}
-
 loadData()
 </script>
-
-<style scoped>
-.pager {
-  margin-top: 16px;
-  justify-content: flex-end;
-}
-</style>
