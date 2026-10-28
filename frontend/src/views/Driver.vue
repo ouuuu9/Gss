@@ -123,7 +123,8 @@ async function loadBaseData() {
   companies.value = await companyApi.all()
   // 拖车数据较多，ADMIN 全部加载供选择
   const data = await tractorApi.page({ page: 1, size: 200 })
-  tractors.value = data.rows
+  // 已停用的拖车不可再被绑定
+  tractors.value = data.rows.filter((t) => t.status === 1)
 }
 
 loadBaseData()

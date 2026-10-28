@@ -67,6 +67,22 @@
         WHERE id = #{id}
     </update>
 
+    <select id="hasActiveEir" resultType="java.lang.Integer">
+        SELECT CASE WHEN EXISTS (
+            SELECT 1 FROM eir_order
+            WHERE driver_id = #{driverId}
+              AND status NOT IN ('DONE', 'CANCELLED')
+        ) THEN 1 ELSE 0 END
+    </select>
+
+    <select id="hasEirHistory" resultType="java.lang.Integer">
+        SELECT CASE WHEN EXISTS (
+            SELECT 1 FROM eir_order
+            WHERE driver_id = #{driverId}
+              AND status IN ('DONE', 'CANCELLED')
+        ) THEN 1 ELSE 0 END
+    </select>
+
     <delete id="deleteById">
         DELETE FROM driver WHERE id = #{id}
     </delete>

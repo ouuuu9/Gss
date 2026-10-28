@@ -33,4 +33,7 @@ public interface TransportCompanyMapper {
 
     /** 删除 */
     int deleteById(@Param("id") Long id);
+
+    /** 检查该公司是否仍有司机/拖车/用户/单证/费用引用 */
+    int hasRelatedRecords(@Param("companyId") Long companyId);
 }

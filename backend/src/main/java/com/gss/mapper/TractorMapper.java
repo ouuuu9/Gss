@@ -37,4 +37,10 @@ public interface TractorMapper {
 
     /** 删除 */
     int deleteById(@Param("id") Long id);
+
+    /** 检查该拖车是否仍有未完成的单证引用 */
+    int hasActiveEir(@Param("tractorId") Long tractorId);
+
+    /** 检查该拖车是否存在历史单证（已完成/已作废），存在则删除时应改为停用以保留追溯 */
+    int hasEirHistory(@Param("tractorId") Long tractorId);
 }

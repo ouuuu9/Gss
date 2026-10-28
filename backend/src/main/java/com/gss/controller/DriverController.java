@@ -89,7 +89,8 @@ public class DriverController {
     @AuditLog("删除司机")
     @Operation(summary = "删除司机")
     public Result<Void> delete(@PathVariable Long id) {
-        driverService.delete(id);
-        return Result.success();
+        boolean removed = driverService.delete(id);
+        return removed ? Result.success()
+                : Result.success("该司机存在历史单证，已改为停用状态保留记录", null);
     }
 }

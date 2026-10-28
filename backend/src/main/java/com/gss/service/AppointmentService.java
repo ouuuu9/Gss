@@ -2,6 +2,7 @@ package com.gss.service;
 
 import com.gss.common.BusinessException;
 import com.gss.common.Constants;
+import com.gss.common.EirStatus;
 import com.gss.common.PageResult;
 import com.gss.dto.AppointmentDTO;
 import com.gss.entity.Appointment;
@@ -44,6 +45,7 @@ public class AppointmentService {
      * 分页查询预约。
      * driverId/companyId 由 Controller 按 JWT 身份强制注入
      */
+    @Transactional(readOnly = true)
     public PageResult<AppointmentVO> page(Integer page, Integer size,
                                           String eirNo, String status, String apptDate,
                                           Long driverId, Long companyId) {
@@ -209,19 +211,16 @@ public class AppointmentService {
     /**
      * 查询某日期各时段剩余容量（未初始化的时段返回默认容量），创建预约弹窗展示约满情况
      */
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> slotCapacity(String date) {
         return slotCapacityMapper.selectRemain(date, Arrays.asList(Constants.TIME_SLOTS),
                 Constants.DEFAULT_SLOT_CAPACITY);
     }
 
     /**
-     * 单证状态条件更新（CAS），影响行数为 0 时抛出并发冲突异常并回滚事务
+     * 单证状态条件更新（CAS）影响行数为 0 时抛出并发冲突异常并回滚事务
      */
     private void casEirStatus(EirOrder update, String expectedStatus) {
-        update.setExpectedStatus(expectedStatus);
-        int rows = eirMapper.updateStatus(update);
-        if (rows == 0) {
-            throw new BusinessException("单证状态已被其他操作变更，请刷新后重试");
-        }
+        EirStatus.casStatus(eirMapper, update, expectedStatus);
     }
 }

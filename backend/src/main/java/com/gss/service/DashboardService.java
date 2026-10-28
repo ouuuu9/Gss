@@ -12,6 +12,7 @@ import com.gss.security.UserContext;
 import com.gss.vo.FeeReportVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,6 +38,7 @@ public class DashboardService {
     /**
      * 获取看板数据
      */
+    @Transactional(readOnly = true)
     public Map<String, Object> dashboard() {
         LoginUser user = UserContext.require();
         if (Constants.ROLE_COMPANY.equals(user.getRole())) {
@@ -52,6 +54,7 @@ public class DashboardService {
     /**
      * 可视化大屏数据
      */
+    @Transactional(readOnly = true)
     public Map<String, Object> screen() {
         Map<String, Object> data = new LinkedHashMap<>();
 

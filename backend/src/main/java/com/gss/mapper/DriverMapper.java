@@ -37,4 +37,10 @@ public interface DriverMapper {
 
     /** 删除 */
     int deleteById(@Param("id") Long id);
+
+    /** 检查该司机是否仍有未完成的单证引用（已派单/已预约/已进闸/已出闸状态） */
+    int hasActiveEir(@Param("driverId") Long driverId);
+
+    /** 检查该司机是否存在历史单证（已完成/已作废），存在则删除时应改为停用以保留追溯 */
+    int hasEirHistory(@Param("driverId") Long driverId);
 }

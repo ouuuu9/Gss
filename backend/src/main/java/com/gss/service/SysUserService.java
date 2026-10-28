@@ -3,14 +3,19 @@ package com.gss.service;
 import com.gss.common.BusinessException;
 import com.gss.common.PageResult;
 import com.gss.dto.UserDTO;
+import com.gss.entity.Driver;
 import com.gss.entity.SysUser;
+import com.gss.entity.TransportCompany;
+import com.gss.mapper.DriverMapper;
 import com.gss.mapper.SysUserMapper;
+import com.gss.mapper.TransportCompanyMapper;
 import com.gss.security.LoginUser;
 import com.gss.security.UserContext;
 import com.gss.vo.SysUserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -23,11 +28,14 @@ import java.util.List;
 public class SysUserService {
 
     private final SysUserMapper sysUserMapper;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder passwordEncoder;
+    private final DriverMapper driverMapper;
+    private final TransportCompanyMapper companyMapper;
 
     /**
      * 分页查询用户
      */
+    @Transactional(readOnly = true)
     public PageResult<SysUserVO> page(Integer page, Integer size, String username, String role) {
         int p = page == null || page < 1 ? 1 : page;
         int s = size == null || size < 1 ? 10 : size;
@@ -39,6 +47,7 @@ public class SysUserService {
     /**
      * 用户详情
      */
+    @Transactional(readOnly = true)
     public SysUser getById(Long id) {
         SysUser user = sysUserMapper.selectById(id);
         if (user == null) {
@@ -119,20 +128,42 @@ public class SysUserService {
     }
 
     /**
-     * 校验角色与公司的对应关系：非码头端角色必须指定公司
+     * 校验角色与公司/司机档案的对应关系：
+     * - 码头端角色（ADMIN/GATE）不需要公司/司机
+     * - 非码头端角色必须指定有效公司
+     * - 司机账号必须关联本公司的司机档案，防止跨公司错配导致司机看不到自己的预约
      */
     private void validateRoleCompany(UserDTO dto) {
         String role = dto.getRole();
         boolean dockRole = "ADMIN".equals(role) || "GATE".equals(role);
-        if (!dockRole && dto.getCompanyId() == null) {
-            throw new BusinessException("请选择所属运输公司");
-        }
-        // 司机账号必须关联司机档案，否则预约时按 driverId 匹配会空指针
-        if ("DRIVER".equals(role) && dto.getDriverId() == null) {
-            throw new BusinessException("司机账号必须关联司机档案");
-        }
         if (dockRole) {
             dto.setCompanyId(null);
+            dto.setDriverId(null);
+            return;
+        }
+
+        // 非码头端角色必须指定公司，且公司必须真实存在
+        if (dto.getCompanyId() == null) {
+            throw new BusinessException("请选择所属运输公司");
+        }
+        TransportCompany company = companyMapper.selectById(dto.getCompanyId());
+        if (company == null) {
+            throw new BusinessException("所属运输公司不存在");
+        }
+
+        // 司机账号必须关联司机档案，且档案必须属于当前公司
+        if ("DRIVER".equals(role)) {
+            if (dto.getDriverId() == null) {
+                throw new BusinessException("司机账号必须关联司机档案");
+            }
+            Driver driver = driverMapper.selectById(dto.getDriverId());
+            if (driver == null) {
+                throw new BusinessException("关联的司机档案不存在");
+            }
+            if (!driver.getCompanyId().equals(dto.getCompanyId())) {
+                throw new BusinessException("关联的司机档案不属于当前运输公司");
+            }
+        } else {
             dto.setDriverId(null);
         }
     }

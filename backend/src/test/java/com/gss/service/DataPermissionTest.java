@@ -10,6 +10,8 @@ import com.gss.mapper.DriverMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.FeeRecordMapper;
 import com.gss.mapper.SysUserMapper;
+import com.gss.mapper.TractorMapper;
+import com.gss.mapper.TransportCompanyMapper;
 import com.gss.security.LoginUser;
 import com.gss.security.UserContext;
 import com.gss.statemachine.EirStateMachine;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,7 +38,11 @@ class DataPermissionTest {
     @Mock
     private DriverMapper driverMapper;
     @Mock
+    private TractorMapper tractorMapper;
+    @Mock
     private SysUserMapper sysUserMapper;
+    @Mock
+    private TransportCompanyMapper companyMapper;
     @Mock
     private EirOrderMapper eirMapper;
     @Mock
@@ -59,7 +66,7 @@ class DataPermissionTest {
         when(driverMapper.selectById(1L)).thenReturn(other);
         UserContext.set(company(2L));
 
-        DriverService service = new DriverService(driverMapper);
+        DriverService service = new DriverService(driverMapper, tractorMapper, companyMapper);
         assertThrows(BusinessException.class, () -> service.delete(1L));
     }
 
@@ -72,7 +79,7 @@ class DataPermissionTest {
         when(driverMapper.selectById(1L)).thenReturn(other);
         UserContext.set(company(2L));
 
-        DriverService service = new DriverService(driverMapper);
+        DriverService service = new DriverService(driverMapper, tractorMapper, companyMapper);
         assertThrows(BusinessException.class, () -> service.update(1L, new com.gss.dto.DriverDTO()));
     }
 
@@ -89,7 +96,7 @@ class DataPermissionTest {
         paid.setPayStatus(1);
         when(feeMapper.selectByEirId(9L)).thenReturn(paid);
 
-        EirService service = new EirService(eirMapper, null, null, feeMapper, null, null, new EirStateMachine());
+        EirService service = new EirService(eirMapper, null, null, null, feeMapper, null, null, new EirStateMachine());
         assertThrows(BusinessException.class, () -> service.cancelDispatch(9L, company(2L)));
     }
 
@@ -102,7 +109,7 @@ class DataPermissionTest {
         when(sysUserMapper.selectById(5L)).thenReturn(me);
         UserContext.set(LoginUser.builder().userId(5L).role("ADMIN").build());
 
-        SysUserService service = new SysUserService(sysUserMapper);
+        SysUserService service = new SysUserService(sysUserMapper, new BCryptPasswordEncoder(), driverMapper, companyMapper);
         assertThrows(BusinessException.class, () -> service.delete(5L));
     }
 
@@ -116,7 +123,7 @@ class DataPermissionTest {
         when(sysUserMapper.countPage(null, "ADMIN", null)).thenReturn(1L);
         UserContext.set(LoginUser.builder().userId(5L).role("ADMIN").build());
 
-        SysUserService service = new SysUserService(sysUserMapper);
+        SysUserService service = new SysUserService(sysUserMapper, new BCryptPasswordEncoder(), driverMapper, companyMapper);
         assertThrows(BusinessException.class, () -> service.delete(6L));
     }
 
@@ -130,7 +137,7 @@ class DataPermissionTest {
         dto.setRole("DRIVER");
         dto.setCompanyId(2L);
 
-        SysUserService service = new SysUserService(sysUserMapper);
+        SysUserService service = new SysUserService(sysUserMapper, new BCryptPasswordEncoder(), driverMapper, companyMapper);
         assertThrows(BusinessException.class, () -> service.create(dto));
     }
 }

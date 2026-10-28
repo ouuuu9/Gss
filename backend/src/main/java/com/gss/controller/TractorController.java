@@ -77,7 +77,8 @@ public class TractorController {
     @AuditLog("删除拖车")
     @Operation(summary = "删除拖车")
     public Result<Void> delete(@PathVariable Long id) {
-        tractorService.delete(id);
-        return Result.success();
+        boolean removed = tractorService.delete(id);
+        return removed ? Result.success()
+                : Result.success("该拖车存在历史单证，已改为停用状态保留记录", null);
     }
 }

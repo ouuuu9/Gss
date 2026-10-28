@@ -2,6 +2,7 @@ package com.gss.service;
 
 import com.gss.common.BusinessException;
 import com.gss.common.Constants;
+import com.gss.common.EirStatus;
 import com.gss.entity.Appointment;
 import com.gss.entity.EirOrder;
 import com.gss.entity.FeeRecord;
@@ -70,7 +71,7 @@ public class GateService {
         update.setTractorId(eir.getTractorId());
         update.setDriverId(eir.getDriverId());
         update.setGateInTime(LocalDateTime.now());
-        casStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
 
         return eirMapper.selectById(eir.getId());
     }
@@ -103,7 +104,7 @@ public class GateService {
         update.setDriverId(eir.getDriverId());
         update.setGateInTime(eir.getGateInTime());
         update.setGateOutTime(LocalDateTime.now());
-        casStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
 
         return eirMapper.selectById(eir.getId());
     }
@@ -126,7 +127,7 @@ public class GateService {
         update.setDriverId(eir.getDriverId());
         update.setGateInTime(eir.getGateInTime());
         update.setGateOutTime(eir.getGateOutTime());
-        casStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
 
         return eirMapper.selectById(eirId);
     }
@@ -134,20 +135,9 @@ public class GateService {
     /* ==================== 内部方法 ==================== */
 
     /** 最近办单台账：按最新闸口动作时间倒序取前 5 条（进闸/出闸/审单） */
+    @Transactional(readOnly = true)
     public List<EirOrderVO> recentOps() {
         return eirMapper.selectRecentGateOps(5);
-    }
-
-    /**
-     * 状态条件更新（CAS）：仅当单证当前状态等于 expectedStatus 时才落库，
-     * 影响行数为 0 说明已被并发操作抢先变更（如重复刷卡），抛出冲突异常。
-     */
-    private void casStatus(EirOrder update, String expectedStatus) {
-        update.setExpectedStatus(expectedStatus);
-        int rows = eirMapper.updateStatus(update);
-        if (rows == 0) {
-            throw new BusinessException("单证状态已被其他操作变更，请刷新后重试");
-        }
     }
 
     private Tractor getTractor(String icCardNo) {

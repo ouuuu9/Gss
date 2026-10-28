@@ -281,8 +281,8 @@ async function prepareDispatch() {
     driverApi.page({ page: 1, size: 200, companyId }),
     tractorApi.page({ page: 1, size: 200, companyId })
   ])
-  companyDrivers.value = dData.rows
-  companyTractors.value = tData.rows
+  companyDrivers.value = dData.rows.filter((d) => d.status === 1)
+  companyTractors.value = tData.rows.filter((t) => t.status === 1)
   dispatchDialog.value = true
 }
 

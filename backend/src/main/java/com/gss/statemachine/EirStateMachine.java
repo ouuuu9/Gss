@@ -1,6 +1,7 @@
 package com.gss.statemachine;
 
 import com.gss.common.BusinessException;
+import com.gss.common.Constants;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -16,19 +17,11 @@ import java.util.Set;
 @Component
 public class EirStateMachine {
 
-    private static final String ST_CREATED = "CREATED";
-    private static final String ST_DISPATCHED = "DISPATCHED";
-    private static final String ST_APPOINTED = "APPOINTED";
-    private static final String ST_GATE_IN = "GATE_IN";
-    private static final String ST_GATE_OUT = "GATE_OUT";
-    private static final String ST_DONE = "DONE";
-    private static final String ST_CANCELLED = "CANCELLED";
-
     /**
      * 可作废的状态集合：车辆未进闸前均可作废
      */
     private static final Set<String> CANCELLABLE_STATES = Set.of(
-            ST_CREATED, ST_DISPATCHED, ST_APPOINTED);
+            Constants.ST_CREATED, Constants.ST_DISPATCHED, Constants.ST_APPOINTED);
 
     /**
      * 状态转移表：key=当前状态，value={event: 目标状态}
@@ -38,29 +31,29 @@ public class EirStateMachine {
     public EirStateMachine() {
         Map<String, Map<String, String>> table = new HashMap<>();
 
-        table.put(ST_CREATED, Map.of(
-                EirEvent.DISPATCH, ST_DISPATCHED,
-                EirEvent.CANCEL, ST_CANCELLED));
+        table.put(Constants.ST_CREATED, Map.of(
+                EirEvent.DISPATCH, Constants.ST_DISPATCHED,
+                EirEvent.CANCEL, Constants.ST_CANCELLED));
 
-        table.put(ST_DISPATCHED, Map.of(
-                EirEvent.CANCEL_DISPATCH, ST_CREATED,
-                EirEvent.APPOINT, ST_APPOINTED,
-                EirEvent.CANCEL, ST_CANCELLED));
+        table.put(Constants.ST_DISPATCHED, Map.of(
+                EirEvent.CANCEL_DISPATCH, Constants.ST_CREATED,
+                EirEvent.APPOINT, Constants.ST_APPOINTED,
+                EirEvent.CANCEL, Constants.ST_CANCELLED));
 
-        table.put(ST_APPOINTED, Map.of(
-                EirEvent.CANCEL_APPOINT, ST_DISPATCHED,
-                EirEvent.EXPIRE_APPOINT, ST_DISPATCHED,
-                EirEvent.GATE_IN, ST_GATE_IN,
-                EirEvent.CANCEL, ST_CANCELLED));
+        table.put(Constants.ST_APPOINTED, Map.of(
+                EirEvent.CANCEL_APPOINT, Constants.ST_DISPATCHED,
+                EirEvent.EXPIRE_APPOINT, Constants.ST_DISPATCHED,
+                EirEvent.GATE_IN, Constants.ST_GATE_IN,
+                EirEvent.CANCEL, Constants.ST_CANCELLED));
 
-        table.put(ST_GATE_IN, Map.of(
-                EirEvent.GATE_OUT, ST_GATE_OUT));
+        table.put(Constants.ST_GATE_IN, Map.of(
+                EirEvent.GATE_OUT, Constants.ST_GATE_OUT));
 
-        table.put(ST_GATE_OUT, Map.of(
-                EirEvent.AUDIT, ST_DONE));
+        table.put(Constants.ST_GATE_OUT, Map.of(
+                EirEvent.AUDIT, Constants.ST_DONE));
 
-        table.put(ST_DONE, Collections.emptyMap());
-        table.put(ST_CANCELLED, Collections.emptyMap());
+        table.put(Constants.ST_DONE, Collections.emptyMap());
+        table.put(Constants.ST_CANCELLED, Collections.emptyMap());
 
         this.transitions = Collections.unmodifiableMap(table);
     }

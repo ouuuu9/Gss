@@ -27,6 +27,7 @@ public class FeeService {
     /**
      * 分页查询收费记录（companyId 由 Controller 按 JWT 强制注入）
      */
+    @Transactional(readOnly = true)
     public PageResult<FeeRecordVO> page(Integer page, Integer size,
                                         String eirNo, Integer payStatus, Long companyId) {
         int p = page == null || page < 1 ? 1 : page;
@@ -85,6 +86,7 @@ public class FeeService {
      * 收费报表：按公司汇总笔数与金额。
      * COMPANY 仅返回本公司数据。
      */
+    @Transactional(readOnly = true)
     public List<FeeReportVO> report(Long companyId) {
         return feeMapper.selectReport(companyId);
     }

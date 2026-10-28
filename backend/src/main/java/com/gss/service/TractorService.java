@@ -5,12 +5,15 @@ import com.gss.common.Constants;
 import com.gss.common.PageResult;
 import com.gss.dto.TractorDTO;
 import com.gss.entity.Tractor;
+import com.gss.entity.TransportCompany;
 import com.gss.mapper.TractorMapper;
+import com.gss.mapper.TransportCompanyMapper;
 import com.gss.security.LoginUser;
 import com.gss.security.UserContext;
 import com.gss.vo.TractorVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -22,11 +25,13 @@ import java.util.List;
 public class TractorService {
 
     private final TractorMapper tractorMapper;
+    private final TransportCompanyMapper companyMapper;
 
     /**
      * 分页查询拖车。
      * 数据权限：companyId 由 Controller 根据 JWT 身份传入（COMPANY 强制本公司）
      */
+    @Transactional(readOnly = true)
     public PageResult<TractorVO> page(Integer page, Integer size,
                                       String plateNo, String icCardNo, Long companyId) {
         int p = page == null || page < 1 ? 1 : page;
@@ -36,6 +41,7 @@ public class TractorService {
         return PageResult.of(total, rows);
     }
 
+    @Transactional(readOnly = true)
     public Tractor getById(Long id) {
         Tractor tractor = tractorMapper.selectById(id);
         if (tractor == null) {
@@ -46,6 +52,7 @@ public class TractorService {
     }
 
     public void create(TractorDTO dto) {
+        validateCompany(dto.getCompanyId());
         Tractor tractor = new Tractor();
         copy(tractor, dto);
         tractor.setStatus(dto.getStatus() == null ? 1 : dto.getStatus());
@@ -54,6 +61,7 @@ public class TractorService {
 
     public void update(Long id, TractorDTO dto) {
         Tractor tractor = getById(id);
+        validateCompany(dto.getCompanyId());
         copy(tractor, dto);
         if (dto.getStatus() != null) {
             tractor.setStatus(dto.getStatus());
@@ -61,9 +69,37 @@ public class TractorService {
         tractorMapper.update(tractor);
     }
 
-    public void delete(Long id) {
+    /**
+     * 删除拖车。
+     * 有进行中单证 → 拒绝；仅有历史单证（已完成/已作废）→ 软删除（置为停用），
+     * 保留历史单证的车牌号展示；无任何单证引用 → 物理删除。
+     *
+     * @return true=物理删除，false=软删除（已停用）
+     */
+    public boolean delete(Long id) {
         getById(id);
+        if (tractorMapper.hasActiveEir(id) == 1) {
+            throw new BusinessException("该拖车仍有关联的进行中单证（已派单/已预约/已进闸），无法删除");
+        }
+        if (tractorMapper.hasEirHistory(id) == 1) {
+            Tractor tractor = new Tractor();
+            tractor.setId(id);
+            tractor.setStatus(0);
+            tractorMapper.update(tractor);
+            return false;
+        }
         tractorMapper.deleteById(id);
+        return true;
+    }
+
+    /**
+     * 校验所属运输公司真实存在，防止产生孤儿拖车记录（无 FK 约束，应用层兜底）
+     */
+    private void validateCompany(Long companyId) {
+        TransportCompany company = companyMapper.selectById(companyId);
+        if (company == null) {
+            throw new BusinessException("所属运输公司不存在");
+        }
     }
 
     /**

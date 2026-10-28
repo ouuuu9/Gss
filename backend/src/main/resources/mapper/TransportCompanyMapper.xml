@@ -56,6 +56,15 @@
         WHERE id = #{id}
     </update>
 
+    <select id="hasRelatedRecords" resultType="java.lang.Integer">
+        SELECT CASE WHEN EXISTS (SELECT 1 FROM driver     WHERE company_id = #{companyId})
+                   OR EXISTS (SELECT 1 FROM tractor      WHERE company_id = #{companyId})
+                   OR EXISTS (SELECT 1 FROM sys_user     WHERE company_id = #{companyId})
+                   OR EXISTS (SELECT 1 FROM eir_order    WHERE company_id = #{companyId})
+                   OR EXISTS (SELECT 1 FROM fee_record   WHERE company_id = #{companyId})
+             THEN 1 ELSE 0 END
+    </select>
+
     <delete id="deleteById">
         DELETE FROM transport_company WHERE id = #{id}
     </delete>

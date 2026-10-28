@@ -18,6 +18,9 @@ import java.util.function.Function;
  */
 public class ExcelExporter {
 
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
     private final Workbook workbook;
     private final Sheet sheet;
     private final CellStyle headerStyle;
@@ -88,7 +91,7 @@ public class ExcelExporter {
         ExcelExporter exporter = new ExcelExporter(sheetName);
         exporter.writeHeader(headers);
         exporter.writeRows(data);
-        String fileName = fileNamePrefix + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String fileName = fileNamePrefix + "_" + LocalDateTime.now().format(TIMESTAMP_FORMATTER);
         exporter.writeToResponse(response, fileName);
     }
 

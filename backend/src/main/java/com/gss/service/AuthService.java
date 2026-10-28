@@ -11,6 +11,7 @@ import com.gss.security.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -60,6 +61,7 @@ public class AuthService {
     /**
      * 获取当前登录用户信息（密码等敏感字段不返回）
      */
+    @Transactional(readOnly = true)
     public Map<String, Object> me() {
         LoginUser loginUser = UserContext.require();
         SysUser user = sysUserMapper.selectById(loginUser.getUserId());

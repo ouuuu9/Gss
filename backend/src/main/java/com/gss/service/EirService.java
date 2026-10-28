@@ -2,6 +2,7 @@ package com.gss.service;
 
 import com.gss.common.BusinessException;
 import com.gss.common.Constants;
+import com.gss.common.EirStatus;
 import com.gss.common.PageResult;
 import com.gss.dto.BatchDispatchDTO;
 import com.gss.dto.DispatchDTO;
@@ -17,6 +18,7 @@ import com.gss.mapper.DriverMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.FeeRecordMapper;
 import com.gss.mapper.TractorMapper;
+import com.gss.mapper.TransportCompanyMapper;
 import com.gss.security.LoginUser;
 import com.gss.statemachine.EirEvent;
 import com.gss.statemachine.EirStateMachine;
@@ -48,9 +50,13 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class EirService {
 
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
     private final EirOrderMapper eirMapper;
     private final DriverMapper driverMapper;
     private final TractorMapper tractorMapper;
+    private final TransportCompanyMapper companyMapper;
     private final FeeRecordMapper feeMapper;
     private final AppointmentMapper appointmentMapper;
     private final ApptSlotCapacityMapper slotCapacityMapper;
@@ -74,6 +80,7 @@ public class EirService {
      * 分页查询单证。
      * companyId 由 Controller 根据 JWT 身份传入（COMPANY 强制本公司）
      */
+    @Transactional(readOnly = true)
     public PageResult<EirOrderVO> page(Integer page, Integer size,
                                        String eirNo, String status, String businessType,
                                        Long companyId, Long driverId) {
@@ -89,6 +96,7 @@ public class EirService {
      * 数据权限：ADMIN/GATE 可查看全部；COMPANY 仅本公司；DRIVER 仅派给自己的单证，
      * 防止通过遍历 ID 水平越权查看其他公司/司机的数据。
      */
+    @Transactional(readOnly = true)
     public EirOrder getById(Long id, LoginUser operator) {
         EirOrder eir = mustExist(id);
         if (Constants.ROLE_COMPANY.equals(operator.getRole())) {
@@ -175,7 +183,7 @@ public class EirService {
         update.setTractorId(eir.getTractorId());
         update.setDriverId(eir.getDriverId());
         // CAS：仅当前状态与读取时一致才落库，与派单/进闸并发时作废失败并回滚
-        casStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
     }
 
     /**
@@ -206,7 +214,7 @@ public class EirService {
         update.setStatus(targetStatus);
         update.setDriverId(driver.getId());
         update.setTractorId(tractor.getId());
-        casStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
 
         // 还重单收还重费；提重单收提重费；均统一在出闸前缴清
         BigDecimal amount = null;
@@ -271,7 +279,7 @@ public class EirService {
         update.setStatus(targetStatus);
         update.setDriverId(null);
         update.setTractorId(null);
-        casStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
 
         // 已缴费的收费记录不能随取消派单一并删除，避免钱已收但记录消失、账实不符
         FeeRecord fee = feeMapper.selectByEirId(id);
@@ -283,18 +291,6 @@ public class EirService {
     }
 
     /* ==================== 内部方法 ==================== */
-
-    /**
-     * 状态条件更新（CAS）：仅当单证当前状态等于 expectedStatus 时才落库，
-     * 影响行数为 0 说明已被并发操作抢先变更，抛出冲突异常由事务回滚。
-     */
-    private void casStatus(EirOrder update, String expectedStatus) {
-        update.setExpectedStatus(expectedStatus);
-        int rows = eirMapper.updateStatus(update);
-        if (rows == 0) {
-            throw new BusinessException("单证状态已被其他操作变更，请刷新后重试");
-        }
-    }
 
     private EirOrder mustExist(Long id) {
         EirOrder eir = eirMapper.selectById(id);
@@ -329,6 +325,10 @@ public class EirService {
         if (!"GP".equals(dto.getContainerType()) && !"HQ".equals(dto.getContainerType())) {
             throw new BusinessException("箱型只能为 GP 或 HQ");
         }
+        // 所属运输公司必须真实存在，防止产生孤儿单证（无 FK 约束，应用层兜底）
+        if (companyMapper.selectById(dto.getCompanyId()) == null) {
+            throw new BusinessException("所属运输公司不存在");
+        }
     }
 
     /**
@@ -344,7 +344,7 @@ public class EirService {
         }
         String no;
         do {
-            no = "EIR" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+            no = "EIR" + LocalDateTime.now().format(TIMESTAMP_FORMATTER)
                     + String.format("%03d", ThreadLocalRandom.current().nextInt(1000));
         } while (eirMapper.selectByEirNo(no) != null);
         return no;

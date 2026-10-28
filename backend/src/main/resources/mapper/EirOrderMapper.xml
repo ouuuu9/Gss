@@ -96,9 +96,9 @@
         SET
             <!-- 状态时间戳自动落库：派单记录派单时间，取消派单回退时清空；审单完成记录审单时间 -->
             <choose>
-                <when test="status == 'DISPATCHED'">dispatch_time = NOW(),</when>
-                <when test="status == 'CREATED'">dispatch_time = NULL,</when>
-                <when test="status == 'DONE'">audit_time = NOW(),</when>
+                <when test="status == @com.gss.common.Constants@ST_DISPATCHED">dispatch_time = NOW(),</when>
+                <when test="status == @com.gss.common.Constants@ST_CREATED">dispatch_time = NULL,</when>
+                <when test="status == @com.gss.common.Constants@ST_DONE">audit_time = NOW(),</when>
             </choose>
             status = #{status},
             tractor_id = #{tractorId},

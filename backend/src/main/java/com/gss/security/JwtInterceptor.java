@@ -64,10 +64,9 @@ public class JwtInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 3. 放入线程上下文
-        UserContext.set(loginUser);
-
-        // 4. 角色校验（方法级注解优先于类级注解）
+        // 3. 角色校验（方法级注解优先于类级注解）
+        // 注意：必须先校验再放线程上下文——preHandle 返回 false 时本拦截器的
+        // afterCompletion 不会被调用，先 set 会导致 UserContext 在线程上残留
         RequireRole requireRole = handlerMethod.getMethodAnnotation(RequireRole.class);
         if (requireRole == null) {
             requireRole = handlerMethod.getBeanType().getAnnotation(RequireRole.class);
@@ -79,6 +78,9 @@ public class JwtInterceptor implements HandlerInterceptor {
                 return false;
             }
         }
+
+        // 4. 放入线程上下文
+        UserContext.set(loginUser);
         return true;
     }
 

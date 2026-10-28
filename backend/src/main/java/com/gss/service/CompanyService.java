@@ -7,6 +7,7 @@ import com.gss.entity.TransportCompany;
 import com.gss.mapper.TransportCompanyMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -22,6 +23,7 @@ public class CompanyService {
     /**
      * 分页查询公司
      */
+    @Transactional(readOnly = true)
     public PageResult<TransportCompany> page(Integer page, Integer size, String name, String code) {
         int p = page == null || page < 1 ? 1 : page;
         int s = size == null || size < 1 ? 10 : size;
@@ -33,10 +35,12 @@ public class CompanyService {
     /**
      * 全部公司（下拉选择用）
      */
+    @Transactional(readOnly = true)
     public List<TransportCompany> listAll() {
         return companyMapper.selectAll();
     }
 
+    @Transactional(readOnly = true)
     public TransportCompany getById(Long id) {
         TransportCompany company = companyMapper.selectById(id);
         if (company == null) {
@@ -69,6 +73,9 @@ public class CompanyService {
 
     public void delete(Long id) {
         getById(id);
+        if (companyMapper.hasRelatedRecords(id) == 1) {
+            throw new BusinessException("该公司下仍有关联的司机/拖车/用户/单证/费用记录，无法删除");
+        }
         companyMapper.deleteById(id);
     }
 }
