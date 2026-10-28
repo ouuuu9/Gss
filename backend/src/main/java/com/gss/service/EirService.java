@@ -200,12 +200,12 @@ public class EirService {
         String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.DISPATCH);
 
         Driver driver = driverMapper.selectById(dto.getDriverId());
-        if (driver == null || !driver.getCompanyId().equals(eir.getCompanyId())) {
-            throw new BusinessException("所选司机不存在或不属于该单证作业公司");
+        if (driver == null || !driver.getCompanyId().equals(eir.getCompanyId()) || driver.getStatus() != 1) {
+            throw new BusinessException("所选司机不存在、已停用或不属于该单证作业公司");
         }
         Tractor tractor = tractorMapper.selectById(dto.getTractorId());
-        if (tractor == null || !tractor.getCompanyId().equals(eir.getCompanyId())) {
-            throw new BusinessException("所选拖车不存在或不属于该单证作业公司");
+        if (tractor == null || !tractor.getCompanyId().equals(eir.getCompanyId()) || tractor.getStatus() != 1) {
+            throw new BusinessException("所选拖车不存在、已停用或不属于该单证作业公司");
         }
 
         // CAS 更新单证为已派单（仅当前仍为 CREATED 才生效），防止并发重复派单导致重复计费

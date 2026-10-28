@@ -107,11 +107,12 @@ npm run dev        # 启动开发服务器 -host
 - **数据权限（后端强制，不依赖前端）**：
   - COMPANY 只能查询/操作本公司的单证、拖车、司机、收费数据
   - DRIVER 只能查询本人单证、创建/取消本人预约
-- **状态机校验**：`EirStateMachine` 以状态转移表集中管理 7 状态 9 事件，所有写操作先经状态机校验，禁止越级；配套 49 个单元测试（状态机 + 数据权限 + 角色矩阵）
+- **状态机校验**：`EirStateMachine` 以状态转移表集中管理 7 状态 9 事件，所有写操作先经状态机校验，禁止越级；配套 57 个单元测试（状态机 + 数据权限 + 角色矩阵 + 收费 + 软删除）
 - **并发防护**：`@Idempotent` 幂等注解（3 秒窗口）+ 全链路 CAS 条件更新（`WHERE status = 前置状态`），防止重复派单/重复刷卡/重复缴费
 - **预约防超约**：时段容量通过 `UPDATE ... WHERE booked_count < capacity` 单语句原子扣减，InnoDB 行锁保证并发正确
 - **AOP 三件套**：`@AuditLog` 操作审计（参数脱敏落库）、`@Idempotent` 防重复提交、`@RefreshScreen` 大屏实时刷新
 - **定时任务**：每 60 秒扫描超时未进闸的预约，自动释放名额并将单证回退为已派单
+- **数据完整性**：删除公司/司机/拖车前校验关联记录，有历史单证的改软删除（停用保留档案），历史数据可正常展示
 - **收费规则**：GR-F 还重单 50 元/单、PI-F 提重单 80 元/单（`application.yml` 可配），派单时生成收费记录，取消派单自动回滚；**出闸前须缴清**
 
 ## 九、目录结构
@@ -124,8 +125,8 @@ Gss/
 │   └── src/main/
 │       ├── java/com/gss/
 │       │   ├── GssApplication.java
-│       │   ├── common/         # Result / PageResult / Constants / CompanyScope / 异常 / 全局异常处理 / Excel导出
-│       │   ├── config/         # WebConfig / WebSocketConfig / DataInitializer
+│       │   ├── common/         # Result / PageResult / Constants / EirStatus / CompanyScope / 异常 / 全局异常处理 / Excel导出
+│       │   ├── config/         # WebConfig / WebSocketConfig / DataInitializer / SecurityConfig / SwaggerConfig
 │       │   ├── security/       # JwtUtil / JwtInterceptor / RequireRole / UserContext
 │       │   ├── annotation/     # @AuditLog / @Idempotent / @RefreshScreen
 │       │   ├── aspect/         # 审计 / 幂等 / 大屏刷新 三个切面
