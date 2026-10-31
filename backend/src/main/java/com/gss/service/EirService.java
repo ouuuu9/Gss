@@ -35,7 +35,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,15 +98,18 @@ public class EirService {
     @Transactional(readOnly = true)
     public EirOrder getById(Long id, LoginUser operator) {
         EirOrder eir = mustExist(id);
-        if (Constants.ROLE_COMPANY.equals(operator.getRole())) {
-            if (!eir.getCompanyId().equals(operator.getCompanyId())) {
-                throw new BusinessException("无权查看其他公司的单证");
-            }
-        } else if (Constants.ROLE_DRIVER.equals(operator.getRole())) {
+
+        if (Constants.ROLE_COMPANY.equals(operator.getRole())
+                && !eir.getCompanyId().equals(operator.getCompanyId())) {
+            throw new BusinessException("无权查看其他公司的单证");
+        }
+
+        if (Constants.ROLE_DRIVER.equals(operator.getRole())) {
             if (operator.getDriverId() == null || !operator.getDriverId().equals(eir.getDriverId())) {
                 throw new BusinessException("无权查看该单证");
             }
         }
+
         return eir;
     }
 
@@ -137,7 +139,10 @@ public class EirService {
     @Transactional
     public void update(Long id, EirDTO dto) {
         EirOrder eir = mustExist(id);
-        if (!Arrays.asList(Constants.ST_CREATED, Constants.ST_DISPATCHED).contains(eir.getStatus())) {
+        // 只有尚未进入闸口作业的单证才允许修改基础信息
+        boolean editable = Constants.ST_CREATED.equals(eir.getStatus())
+                || Constants.ST_DISPATCHED.equals(eir.getStatus());
+        if (!editable) {
             throw new BusinessException("当前状态不允许修改单证");
         }
         validateBusiness(dto);
@@ -251,8 +256,15 @@ public class EirService {
                 self.dispatch(id, single, operator);
                 success++;
             } catch (BusinessException e) {
-                EirOrder o = eirMapper.selectById(id);
-                failures.add((o == null ? "单证#" + id : o.getEirNo()) + "：" + e.getMessage());
+                // 失败项带上单证编号，前端可直接定位；查不到时退回用 ID 标识
+                EirOrder failedEir = eirMapper.selectById(id);
+                String eirLabel;
+                if (failedEir == null) {
+                    eirLabel = "单证#" + id;
+                } else {
+                    eirLabel = failedEir.getEirNo();
+                }
+                failures.add(eirLabel + "：" + e.getMessage());
             }
         }
         Map<String, Object> result = new HashMap<>();
@@ -290,8 +302,6 @@ public class EirService {
         feeMapper.deleteByEirId(id);
     }
 
-    /* ==================== 内部方法 ==================== */
-
     private EirOrder mustExist(Long id) {
         EirOrder eir = eirMapper.selectById(id);
         if (eir == null) {
@@ -314,9 +324,12 @@ public class EirService {
      * 校验业务类型、箱尺寸、箱型合法性
      */
     private void validateBusiness(EirDTO dto) {
-        List<String> types = Arrays.asList(
-                Constants.BIZ_PI_F, Constants.BIZ_PI_E, Constants.BIZ_GR_E, Constants.BIZ_GR_F);
-        if (!types.contains(dto.getBusinessType())) {
+        String businessType = dto.getBusinessType();
+        boolean knownBusinessType = Constants.BIZ_PI_F.equals(businessType)
+                || Constants.BIZ_PI_E.equals(businessType)
+                || Constants.BIZ_GR_E.equals(businessType)
+                || Constants.BIZ_GR_F.equals(businessType);
+        if (!knownBusinessType) {
             throw new BusinessException("业务类型不合法");
         }
         if (dto.getContainerSize() != 20 && dto.getContainerSize() != 40) {

@@ -48,8 +48,8 @@ public class GateService {
     public EirOrder checkin(String icCardNo) {
         Tractor tractor = getTractor(icCardNo);
 
-        // 定位该拖车处于"已预约"状态的单证（多张时取最早创建的一张）
-        EirOrder eir = findEirByTractorAndStatus(tractor.getId(), Constants.ST_APPOINTED);
+        // 定位该拖车处于"已预约"状态的单证（多张时取最早创建的一张，条件下推到 SQL）
+        EirOrder eir = eirMapper.selectEarliestByTractorAndStatus(tractor.getId(), Constants.ST_APPOINTED);
         if (eir == null) {
             throw new BusinessException("该卡对应车辆没有已预约待进闸的单证，禁止进闸");
         }
@@ -85,7 +85,8 @@ public class GateService {
     public EirOrder checkout(String icCardNo) {
         Tractor tractor = getTractor(icCardNo);
 
-        EirOrder eir = findEirByTractorAndStatus(tractor.getId(), Constants.ST_GATE_IN);
+        // 定位该拖车处于"已进闸"状态的单证（多张时取最早创建的一张）
+        EirOrder eir = eirMapper.selectEarliestByTractorAndStatus(tractor.getId(), Constants.ST_GATE_IN);
         if (eir == null) {
             throw new BusinessException("该卡对应车辆没有已进闸待出闸的单证，禁止出闸办单");
         }
@@ -132,14 +133,17 @@ public class GateService {
         return eirMapper.selectById(eirId);
     }
 
-    /* ==================== 内部方法 ==================== */
-
-    /** 最近办单台账：按最新闸口动作时间倒序取前 5 条（进闸/出闸/审单） */
+    /**
+     * 最近办单台账：按最新闸口动作时间倒序取前 5 条（进闸/出闸/审单）
+     */
     @Transactional(readOnly = true)
     public List<EirOrderVO> recentOps() {
         return eirMapper.selectRecentGateOps(5);
     }
 
+    /**
+     * 按 IC 卡号查询拖车，并拦截不存在与已停用的卡
+     */
     private Tractor getTractor(String icCardNo) {
         Tractor tractor = tractorMapper.selectByIcCardNo(icCardNo);
         if (tractor == null) {
@@ -149,12 +153,5 @@ public class GateService {
             throw new BusinessException("该 IC 卡已停用，请联系运输公司");
         }
         return tractor;
-    }
-
-    /**
-     * 查找指定拖车、指定状态下最早创建的一张单证（条件下推到 SQL，避免全量加载后内存过滤）
-     */
-    private EirOrder findEirByTractorAndStatus(Long tractorId, String status) {
-        return eirMapper.selectEarliestByTractorAndStatus(tractorId, status);
     }
 }

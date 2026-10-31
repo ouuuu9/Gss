@@ -7,6 +7,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理器：把异常统一转换为 Result 格式
@@ -30,8 +31,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Result<Void> handleValid(MethodArgumentNotValidException e) {
         FieldError fieldError = e.getBindingResult().getFieldError();
-        String msg = fieldError != null ? fieldError.getDefaultMessage() : "参数校验失败";
-        return Result.error(400, msg);
+        String message = "参数校验失败";
+        if (fieldError != null) {
+            message = fieldError.getDefaultMessage();
+        }
+        return Result.error(400, message);
     }
 
     /**
@@ -40,8 +44,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BindException.class)
     public Result<Void> handleBind(BindException e) {
         FieldError fieldError = e.getBindingResult().getFieldError();
-        String msg = fieldError != null ? fieldError.getDefaultMessage() : "参数校验失败";
-        return Result.error(400, msg);
+        String message = "参数校验失败";
+        if (fieldError != null) {
+            message = fieldError.getDefaultMessage();
+        }
+        return Result.error(400, message);
     }
 
     /**
@@ -55,8 +62,8 @@ public class GlobalExceptionHandler {
     /**
      * 静态资源未找到（Spring Boot 3.2）：返回 404，不走兜底
      */
-    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
-    public Result<Void> handleNoResource(org.springframework.web.servlet.resource.NoResourceFoundException e, HttpServletRequest request) {
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Result<Void> handleNoResource(NoResourceFoundException e, HttpServletRequest request) {
         log.warn("资源未找到 [{}]：{}", request.getRequestURI(), e.getMessage());
         return Result.error(404, "资源不存在");
     }

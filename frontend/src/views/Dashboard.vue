@@ -74,20 +74,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { dashboardApi } from '@/api'
 import { useUserStore } from '@/store/user'
-import { EIR_STATUS } from '@/utils/dict'
+import { EIR_STATUS, ROLE, dictLabel } from '@/utils/dict'
 
 const userStore = useUserStore()
 const user = computed(() => userStore.user)
 
 const stat = ref({})
 
-const roleNames = {
-  ADMIN: '码头管理员',
-  GATE: '闸口办单员',
-  COMPANY: '运输公司用户',
-  DRIVER: '司机'
-}
-const roleName = computed(() => roleNames[user.value?.role])
+// 当前身份的中文名称，直接复用角色字典
+const roleName = computed(() => dictLabel(ROLE, user.value?.role))
 
 const today = new Date().toLocaleDateString('zh-CN', {
   year: 'numeric',
@@ -106,37 +101,42 @@ const topCards = computed(() => {
   ]
 })
 
-// 状态分布（含百分比）
+// 后端返回的统计字段名，与单证状态值一一对应
+const STATUS_COUNT_FIELD = {
+  CREATED: 'createdCount',
+  DISPATCHED: 'dispatchedCount',
+  APPOINTED: 'appointedCount',
+  GATE_IN: 'gateInCount',
+  GATE_OUT: 'gateOutCount',
+  DONE: 'doneCount',
+  CANCELLED: 'cancelledCount'
+}
+
+// 进度条颜色，与状态标签的语义色保持区分
+const STATUS_BAR_COLOR = {
+  CREATED: '#909399',
+  DISPATCHED: '#409eff',
+  APPOINTED: '#e6a23c',
+  GATE_IN: '#8e44ad',
+  GATE_OUT: '#16a085',
+  DONE: '#67c23a',
+  CANCELLED: '#f56c6c'
+}
+
+// 状态分布：按单证状态字典逐项计算数量与百分比
 const distribution = computed(() => {
   const total = Number(stat.value.totalEir || 0)
-  const rows = EIR_STATUS.map((s) => {
-    const keyMap = {
-      CREATED: 'createdCount',
-      DISPATCHED: 'dispatchedCount',
-      APPOINTED: 'appointedCount',
-      GATE_IN: 'gateInCount',
-      GATE_OUT: 'gateOutCount',
-      DONE: 'doneCount',
-      CANCELLED: 'cancelledCount'
-    }
-    const colors = {
-      CREATED: '#909399',
-      DISPATCHED: '#409eff',
-      APPOINTED: '#e6a23c',
-      GATE_IN: '#8e44ad',
-      GATE_OUT: '#16a085',
-      DONE: '#67c23a',
-      CANCELLED: '#f56c6c'
-    }
-    const value = Number(stat.value[keyMap[s.value]] || 0)
-    return {
-      label: s.label,
+  const rows = []
+  for (const status of EIR_STATUS) {
+    const value = Number(stat.value[STATUS_COUNT_FIELD[status.value]] || 0)
+    rows.push({
+      label: status.label,
+      type: status.type,
       value,
-      type: s.type,
-      barColor: colors[s.value],
+      barColor: STATUS_BAR_COLOR[status.value],
       percent: total === 0 ? 0 : Math.round((value / total) * 100)
-    }
-  })
+    })
+  }
   return rows
 })
 

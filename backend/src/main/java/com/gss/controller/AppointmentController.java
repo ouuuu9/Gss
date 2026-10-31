@@ -53,7 +53,7 @@ public class AppointmentController {
                                                   @RequestParam(required = false) String apptDate,
                                                   @RequestParam(required = false) Long driverId,
                                                   @RequestParam(required = false) Long companyId) {
-        var scope = CompanyScope.of(companyId, driverId);
+        CompanyScope.Scope scope = CompanyScope.of(companyId, driverId);
         return Result.success(appointmentService.page(page, size, eirNo, status, apptDate,
                 scope.driverId(), scope.companyId()));
     }
@@ -66,7 +66,7 @@ public class AppointmentController {
     @Operation(summary = "导出预约记录Excel")
     public void exportExcel(@RequestParam(required = false) String status,
                             HttpServletResponse response) throws IOException {
-        var scope = CompanyScope.of(null, null);
+        CompanyScope.Scope scope = CompanyScope.of(null, null);
         // 复用分页查询，取一个足够大的 size 代替全量查询
         List<AppointmentVO> rows = appointmentService.page(1, 10000, null, status, null,
                 scope.driverId(), scope.companyId()).getRows();

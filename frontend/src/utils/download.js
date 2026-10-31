@@ -17,15 +17,19 @@ export function downloadBlob(blob, filename) {
 }
 
 /**
- * 从响应头 Content-Disposition 提取文件名，无则用 fallback
+ * 从响应头 Content-Disposition 提取文件名，没有则用 fallback
  */
 export function getFilenameFromResponse(response, fallback) {
   const disposition = response.headers['content-disposition']
-  if (disposition) {
-    const match = disposition.match(/filename\*=UTF-8''(.+)/)
-    if (match) return decodeURIComponent(match[1])
+  if (!disposition) {
+    return fallback
   }
-  return fallback
+  // 后端以 UTF-8 编码文件名，形如 filename*=UTF-8''xxx.xlsx
+  const match = disposition.match(/filename\*=UTF-8''(.+)/)
+  if (!match) {
+    return fallback
+  }
+  return decodeURIComponent(match[1])
 }
 
 /**

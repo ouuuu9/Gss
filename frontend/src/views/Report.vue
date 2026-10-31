@@ -110,40 +110,75 @@ async function loadData() {
     const data = await feeApi.report(isAdmin.value ? { companyId: companyId.value } : {})
     reportData.value = data || []
 
-    // 汇总计算
-    summary.totalCount = reportData.value.reduce((s, r) => s + Number(r.totalCount || 0), 0)
-    summary.paidCount = reportData.value.reduce((s, r) => s + Number(r.paidCount || 0), 0)
-    summary.unpaidCount = reportData.value.reduce((s, r) => s + Number(r.unpaidCount || 0), 0)
-    summary.paidAmount = reportData.value
-      .reduce((s, r) => s + Number(r.paidAmount || 0), 0)
-      .toFixed(2)
+    // 汇总所有公司的数据，用于顶部四个指标卡
+    let totalCount = 0
+    let paidCount = 0
+    let unpaidCount = 0
+    let paidAmount = 0
+    for (const row of reportData.value) {
+      totalCount += Number(row.totalCount || 0)
+      paidCount += Number(row.paidCount || 0)
+      unpaidCount += Number(row.unpaidCount || 0)
+      paidAmount += Number(row.paidAmount || 0)
+    }
+    summary.totalCount = totalCount
+    summary.paidCount = paidCount
+    summary.unpaidCount = unpaidCount
+    summary.paidAmount = paidAmount.toFixed(2)
   } finally {
     loading.value = false
   }
 }
 
-// 合计行
+// 表格合计行：序号和公司编码留空，公司名显示“合计”，数值列求和
+const COUNT_FIELDS = ['totalCount', 'paidCount', 'unpaidCount']
+const AMOUNT_FIELDS = ['totalAmount', 'paidAmount']
+
 function getSummary({ columns, data }) {
-  return columns.map((col, index) => {
-    if (index === 0 || index === 1 || index === 2) {
-      return index === 2 ? '合计' : ''
+  // 对指定字段求和；金额列保留两位小数
+  function sumField(prop) {
+    let sum = 0
+    for (const row of data) {
+      sum += Number(row[prop] || 0)
     }
-    const prop = col.property
-    if (!prop) return ''
-    if (['totalCount', 'paidCount', 'unpaidCount'].includes(prop)) {
-      return data.reduce((s, r) => s + Number(r[prop] || 0), 0)
+    return sum
+  }
+
+  const cells = []
+  for (let index = 0; index < columns.length; index++) {
+    if (index === 0 || index === 1) {
+      cells.push('')
+      continue
     }
-    if (prop === 'totalAmount' || prop === 'paidAmount') {
-      return data.reduce((s, r) => s + Number(r[prop] || 0), 0).toFixed(2)
+    if (index === 2) {
+      cells.push('合计')
+      continue
     }
-    return ''
-  })
+
+    const prop = columns[index].property
+    if (!prop) {
+      cells.push('')
+      continue
+    }
+    if (COUNT_FIELDS.includes(prop)) {
+      cells.push(sumField(prop))
+      continue
+    }
+    if (AMOUNT_FIELDS.includes(prop)) {
+      cells.push(sumField(prop).toFixed(2))
+      continue
+    }
+    cells.push('')
+  }
+  return cells
 }
 
+// 管理员才需要公司下拉筛选，公司用户只查自己的数据
 async function loadCompanies() {
-  if (isAdmin.value) {
-    companies.value = await companyApi.all()
+  if (!isAdmin.value) {
+    return
   }
+  companies.value = await companyApi.all()
 }
 
 loadCompanies()

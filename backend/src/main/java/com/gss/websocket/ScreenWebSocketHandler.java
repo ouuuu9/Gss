@@ -60,7 +60,12 @@ public class ScreenWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         TextMessage message = new TextMessage(payload);
-        sessions.values().removeIf(session -> !trySend(session, message));
+        for (WebSocketSession session : sessions.values()) {
+            // 发送失败说明连接已不可用，直接剔除，避免下次广播继续无效发送
+            if (!trySend(session, message)) {
+                sessions.remove(session.getId());
+            }
+        }
     }
 
     /**

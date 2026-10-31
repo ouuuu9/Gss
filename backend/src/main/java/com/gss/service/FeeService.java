@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -68,12 +69,18 @@ public class FeeService {
             throw new BusinessException("未找到选中的收费记录");
         }
 
-        // 过滤出本公司且未缴费的记录
-        List<Long> payableIds = fees.stream()
-                .filter(f -> f.getCompanyId().equals(operator.getCompanyId()))
-                .filter(f -> f.getPayStatus() == null || f.getPayStatus() == 0)
-                .map(FeeRecord::getId)
-                .toList();
+        // 只处理本公司且尚未缴费的记录，其余记录跳过
+        List<Long> payableIds = new ArrayList<>();
+        for (FeeRecord fee : fees) {
+            if (!fee.getCompanyId().equals(operator.getCompanyId())) {
+                continue;
+            }
+            // 只有 pay_status 为空或 0（未缴）的记录才需要缴费
+            if (fee.getPayStatus() != null && fee.getPayStatus() != 0) {
+                continue;
+            }
+            payableIds.add(fee.getId());
+        }
 
         if (payableIds.isEmpty()) {
             throw new BusinessException("所选记录均无需缴费（可能已缴费或不属于本公司）");
@@ -90,8 +97,6 @@ public class FeeService {
     public List<FeeReportVO> report(Long companyId) {
         return feeMapper.selectReport(companyId);
     }
-
-    /* ==================== 内部方法 ==================== */
 
     private FeeRecord mustExist(Long id) {
         FeeRecord fee = feeMapper.selectById(id);

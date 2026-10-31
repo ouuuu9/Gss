@@ -104,7 +104,7 @@ const { loading, tableData, total, query, loadData, resetQuery } = useCrudPage(f
 
 const selectedIds = computed(() => selectedRows.value.map((r) => r.id))
 
-// 只有未缴费记录允许勾选
+// 只有未缴费的记录才能勾选批量缴费
 function canSelect(row) {
   return row.payStatus === 0
 }
@@ -140,10 +140,12 @@ async function handleExport() {
   exporting.value = false
 }
 
+// 管理员需要公司下拉做筛选，公司用户只能看自己的数据，无需加载
 async function loadCompanies() {
-  if (isAdmin.value) {
-    companies.value = await companyApi.all()
+  if (!isAdmin.value) {
+    return
   }
+  companies.value = await companyApi.all()
 }
 
 loadCompanies()

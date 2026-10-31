@@ -44,23 +44,10 @@ import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { authApi } from '@/api'
 import { useUserStore } from '@/store/user'
-import { routes } from '@/router'
+import { firstAccessiblePath } from '@/router'
 
 const router = useRouter()
 const userStore = useUserStore()
-
-// 取该角色第一个有权限访问的路径（与路由表单一数据源保持一致）
-function firstAccessiblePath(role) {
-  const root = routes.find((r) => r.path === '/')
-  const children = root?.children ?? []
-  for (const child of children) {
-    const roles = child.meta?.roles
-    if (child.meta?.title && (!roles || roles.includes(role))) {
-      return '/' + child.path
-    }
-  }
-  return '/login'
-}
 
 const formRef = ref()
 const loading = ref(false)
@@ -89,19 +76,21 @@ function fillAccount(acc) {
 }
 
 async function handleLogin() {
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    loading.value = true
-    try {
-      const data = await authApi.login(form)
-      userStore.setLogin(data.token, data.user)
-      ElMessage.success(`欢迎，${data.user.name}`)
-      // 按角色跳转：管理员/闸口进看板，公司进拖车管理，司机进预约
-      router.push(firstAccessiblePath(data.user.role))
-    } finally {
-      loading.value = false
-    }
-  })
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) {
+    return
+  }
+
+  loading.value = true
+  try {
+    const data = await authApi.login(form)
+    userStore.setLogin(data.token, data.user)
+    ElMessage.success(`欢迎，${data.user.name}`)
+    // 按角色跳转：管理员/闸口进看板，公司/司机进入各自第一个有权限的菜单
+    router.push(firstAccessiblePath(data.user.role))
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

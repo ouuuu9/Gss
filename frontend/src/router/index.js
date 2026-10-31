@@ -128,10 +128,11 @@ router.beforeEach((to, from, next) => {
 })
 
 /**
- * 根据角色返回其第一个有权限访问的路径，作为无权限跳转的兜底目标。
+ * 根据角色返回其第一个有权限访问的路径，作为登录后落地页与无权限跳转的兜底目标。
  * 菜单单一数据源原则：直接从路由表读取 meta.roles 判断。
+ * 登录页和主布局也复用这个函数，避免三处各写一份相同的查找逻辑。
  */
-function firstAccessiblePath(role) {
+export function firstAccessiblePath(role) {
   const root = routes.find((r) => r.path === '/')
   const children = root?.children ?? []
   for (const child of children) {

@@ -140,7 +140,7 @@ public class AppointmentService {
         update.setStatus(targetStatus);
         update.setTractorId(eir.getTractorId());
         update.setDriverId(eir.getDriverId());
-        casEirStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
     }
 
     /**
@@ -192,7 +192,7 @@ public class AppointmentService {
         update.setStatus(targetStatus);
         update.setTractorId(eir.getTractorId());
         update.setDriverId(eir.getDriverId());
-        casEirStatus(update, eir.getStatus());
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
     }
 
     /**
@@ -215,12 +215,5 @@ public class AppointmentService {
     public List<Map<String, Object>> slotCapacity(String date) {
         return slotCapacityMapper.selectRemain(date, Arrays.asList(Constants.TIME_SLOTS),
                 Constants.DEFAULT_SLOT_CAPACITY);
-    }
-
-    /**
-     * 单证状态条件更新（CAS）影响行数为 0 时抛出并发冲突异常并回滚事务
-     */
-    private void casEirStatus(EirOrder update, String expectedStatus) {
-        EirStatus.casStatus(eirMapper, update, expectedStatus);
     }
 }

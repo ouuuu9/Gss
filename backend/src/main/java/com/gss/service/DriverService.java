@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -51,9 +52,16 @@ public class DriverService {
     public List<DriverVO> listAll() {
         LoginUser user = UserContext.require();
         Long companyId = Constants.ROLE_COMPANY.equals(user.getRole()) ? user.getCompanyId() : null;
-        return driverMapper.selectPage(null, null, companyId, 0, 1000).stream()
-                .filter(d -> Integer.valueOf(1).equals(d.getStatus()))
-                .toList();
+
+        List<DriverVO> allDrivers = driverMapper.selectPage(null, null, companyId, 0, 1000);
+        List<DriverVO> enabledDrivers = new ArrayList<>();
+        for (DriverVO driver : allDrivers) {
+            // 已停用（status=0）的司机不能再被派单
+            if (driver.getStatus() != null && driver.getStatus() == 1) {
+                enabledDrivers.add(driver);
+            }
+        }
+        return enabledDrivers;
     }
 
     @Transactional(readOnly = true)

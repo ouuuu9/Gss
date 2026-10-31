@@ -8,7 +8,7 @@
       </div>
       <el-menu
         :default-active="$route.path"
-        :default-openeds="openeds"
+        :default-openeds="defaultOpenedGroups"
         :collapse="collapsed"
         :collapse-transition="false"
         router
@@ -78,6 +78,7 @@ import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { authApi } from '@/api'
+import { firstAccessiblePath } from '@/router'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -93,16 +94,8 @@ const roleNames = {
 }
 const roleName = computed(() => roleNames[user.value?.role] || '')
 
-// 用户的首页路径：取第一个有权限访问的菜单（看板仅 ADMIN/GATE 可见，公司/司机落到各自业务页）
-const homePath = computed(() => {
-  const rootRoute = router.options.routes.find((r) => r.path === '/')
-  const children = rootRoute?.children ?? []
-  const first = children.find((child) => {
-    const roles = child.meta?.roles
-    return child.meta?.title && (!roles || roles.includes(user.value?.role))
-  })
-  return first ? '/' + first.path : '/dashboard'
-})
+// 首页路径取当前角色第一个有权限的菜单，判断逻辑与路由守卫共用一份
+const homePath = computed(() => firstAccessiblePath(user.value?.role))
 
 // 菜单由路由表单一数据源生成：读取主布局下带标题的子路由，
 // 按 meta.roles 过滤当前用户有权限访问的模块（无 roles 表示所有角色可见），
@@ -137,7 +130,8 @@ const groupIcons = {
   基础档案: 'Files',
   系统管理: 'Setting'
 }
-const openeds = computed(() => menuGroups.value.map((g) => g.title))
+// 默认展开全部分组；用户点击分组标题仍可单独折叠
+const defaultOpenedGroups = computed(() => menuGroups.value.map((g) => g.title))
 
 async function handleCommand(command) {
   if (command === 'logout') {

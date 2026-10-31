@@ -76,7 +76,7 @@
         <el-form-item v-if="form.role === 'DRIVER'" label="关联司机">
           <el-select v-model="form.driverId" placeholder="可选，关联司机档案" clearable filterable style="width: 100%">
             <el-option
-              v-for="d in drivers.filter((x) => !form.companyId || x.companyId === form.companyId)"
+              v-for="d in driverOptions"
               :key="d.id"
               :label="`${d.name}（${d.phone}）`"
               :value="d.id"
@@ -140,6 +140,14 @@ const {
 const pwdForm = reactive({ id: null, username: '', name: '', password: '' })
 
 const needCompany = computed(() => form.role === 'COMPANY' || form.role === 'DRIVER')
+
+// 关联司机下拉：选定公司后只列出该公司司机，未选公司时列出全部
+const driverOptions = computed(() => {
+  if (!form.companyId) {
+    return drivers.value
+  }
+  return drivers.value.filter((driver) => driver.companyId === form.companyId)
+})
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],

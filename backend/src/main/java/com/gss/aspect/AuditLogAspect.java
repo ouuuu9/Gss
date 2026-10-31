@@ -158,6 +158,10 @@ public class AuditLogAspect {
         if (text == null) {
             return null;
         }
-        return text.length() <= MAX_TEXT_LENGTH ? text : text.substring(0, MAX_TEXT_LENGTH);
+        if (text.length() <= MAX_TEXT_LENGTH) {
+            return text;
+        }
+        // 超长内容按列定义截断，避免落库失败
+        return text.substring(0, MAX_TEXT_LENGTH);
     }
 }

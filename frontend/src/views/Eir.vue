@@ -132,7 +132,7 @@
     </el-dialog>
 
     <!-- 派单弹窗（单条/批量共用） -->
-    <el-dialog v-model="dispatchDialog" :title="dispatchTargets.length > 1 ? '批量派单' : '单证派单'" width="520px">
+    <el-dialog v-model="dispatchDialog" :title="dispatchEirIds.length > 1 ? '批量派单' : '单证派单'" width="520px">
       <el-alert
         title="派单后将通知司机；还重单生成 50 元还重费（进闸前缴清），提重单生成 80 元提重费（出闸前缴清）"
         type="info" :closable="false" show-icon style="margin-bottom: 16px"
@@ -170,7 +170,6 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, RefreshLeft, Plus, Download, Promotion } from '@element-plus/icons-vue'
 import { eirApi, companyApi, driverApi, tractorApi, gateApi, apptApi } from '@/api'
@@ -181,7 +180,6 @@ import ApptBookDialog from '@/components/ApptBookDialog.vue'
 import { useCrudPage } from '@/utils/useCrudPage'
 import AppPager from '@/components/AppPager.vue'
 
-const router = useRouter()
 const userStore = useUserStore()
 const isAdmin = computed(() => userStore.role === 'ADMIN')
 const isCompany = computed(() => userStore.role === 'COMPANY')
@@ -213,7 +211,7 @@ const eirRules = {
 
 /* ---------- 派单弹窗（单条/批量共用） ---------- */
 const dispatchDialog = ref(false)
-const dispatchTargets = ref([])
+const dispatchEirIds = ref([])
 const dispatchLabel = ref('')
 const dispatchForm = reactive({ driverId: null, tractorId: null })
 const companyDrivers = ref([])
@@ -242,34 +240,36 @@ function openEirDialog(row) {
 }
 
 async function submitEir() {
-  await eirFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    submitting.value = true
-    try {
-      if (eirForm.id) {
-        await eirApi.update(eirForm.id, eirForm)
-        ElMessage.success('修改成功')
-      } else {
-        await eirApi.create(eirForm)
-        ElMessage.success('单证录入成功')
-      }
-      eirDialog.value = false
-      loadData()
-    } finally {
-      submitting.value = false
+  const valid = await eirFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    return
+  }
+
+  submitting.value = true
+  try {
+    if (eirForm.id) {
+      await eirApi.update(eirForm.id, eirForm)
+      ElMessage.success('修改成功')
+    } else {
+      await eirApi.create(eirForm)
+      ElMessage.success('单证录入成功')
     }
-  })
+    eirDialog.value = false
+    loadData()
+  } finally {
+    submitting.value = false
+  }
 }
 
 function openDispatch(row) {
-  dispatchTargets.value = [row.id]
+  dispatchEirIds.value = [row.id]
   dispatchLabel.value = row.eirNo
   prepareDispatch()
 }
 
 function openBatchDispatch() {
-  dispatchTargets.value = selectedRows.value.map((r) => r.id)
-  dispatchLabel.value = `已选 ${dispatchTargets.value.length} 条单证（派给同一司机与拖车）`
+  dispatchEirIds.value = selectedRows.value.map((r) => r.id)
+  dispatchLabel.value = `已选 ${dispatchEirIds.value.length} 条单证（派给同一司机与拖车）`
   prepareDispatch()
 }
 
@@ -294,11 +294,11 @@ async function submitDispatch() {
   submitting.value = true
   try {
     const payload = { driverId: dispatchForm.driverId, tractorId: dispatchForm.tractorId }
-    if (dispatchTargets.value.length === 1) {
-      await eirApi.dispatch(dispatchTargets.value[0], payload)
+    if (dispatchEirIds.value.length === 1) {
+      await eirApi.dispatch(dispatchEirIds.value[0], payload)
       ElMessage.success('派单成功')
     } else {
-      const res = await eirApi.batchDispatch({ ids: dispatchTargets.value, ...payload })
+      const res = await eirApi.batchDispatch({ ids: dispatchEirIds.value, ...payload })
       if (res.failed > 0) {
         ElMessageBox.alert(
           res.failures.join('\n'),

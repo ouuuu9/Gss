@@ -118,6 +118,12 @@ public class TractorService {
         tractor.setFrameNo(dto.getFrameNo());
         tractor.setIcCardNo(dto.getIcCardNo());
         tractor.setCompanyId(dto.getCompanyId());
-        tractor.setAxleNum(dto.getAxleNum() == null ? 4 : dto.getAxleNum());
+
+        // 轴数未填写时按默认 4 轴处理
+        if (dto.getAxleNum() == null) {
+            tractor.setAxleNum(4);
+        } else {
+            tractor.setAxleNum(dto.getAxleNum());
+        }
     }
 }

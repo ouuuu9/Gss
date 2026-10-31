@@ -36,10 +36,10 @@
       <el-form-item label="预约时段" prop="timeSlot">
         <el-select v-model="form.timeSlot" placeholder="请先选择预约日期" style="width: 100%">
           <el-option
-            v-for="s in slotOptions" :key="s.timeSlot"
-            :label="slotLabel(s)"
-            :value="s.timeSlot"
-            :disabled="s.remain <= 0 || isPastSlot(s.timeSlot)"
+            v-for="option in slotOptions" :key="option.timeSlot"
+            :label="slotLabel(option)"
+            :value="option.timeSlot"
+            :disabled="option.remain <= 0 || isPastSlot(option.timeSlot)"
           />
         </el-select>
       </el-form-item>
@@ -109,38 +109,45 @@ function disablePast(date) {
   return date.getTime() < today.getTime()
 }
 
-// 当天已过时段禁用：时段开始时间早于当前时刻即视为过期（后端同步兜底拦截）
-function isPastSlot(slot) {
-  const today = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  if (form.apptDate !== `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`) {
+// 当天已经开始的时段不允许再预约（后端也会兜底拦截）
+function isPastSlot(timeSlot) {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  const todayText = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  // 只有预约日期是今天时才可能过期
+  if (form.apptDate !== todayText) {
     return false
   }
-  const [h, m] = slot.slice(0, 5).split(':').map(Number)
-  return h * 60 + m <= today.getHours() * 60 + today.getMinutes()
+  const [hour, minute] = timeSlot.slice(0, 5).split(':').map(Number)
+  return hour * 60 + minute <= now.getHours() * 60 + now.getMinutes()
 }
 
-function slotLabel(s) {
-  return isPastSlot(s.timeSlot) ? `${s.timeSlot}（已过期）` : `${s.timeSlot}（剩余 ${s.remain}）`
+function slotLabel(option) {
+  if (isPastSlot(option.timeSlot)) {
+    return `${option.timeSlot}（已过期）`
+  }
+  return `${option.timeSlot}（剩余 ${option.remain}）`
 }
 
 async function submit() {
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    submitting.value = true
-    try {
-      await apptApi.create({
-        eirId: form.eirId,
-        plateNo: form.plateNo,
-        apptDate: form.apptDate,
-        timeSlot: form.timeSlot
-      })
-      ElMessage.success('预约成功')
-      emit('update:visible', false)
-      emit('success')
-    } finally {
-      submitting.value = false
-    }
-  })
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) {
+    return
+  }
+
+  submitting.value = true
+  try {
+    await apptApi.create({
+      eirId: form.eirId,
+      plateNo: form.plateNo,
+      apptDate: form.apptDate,
+      timeSlot: form.timeSlot
+    })
+    ElMessage.success('预约成功')
+    emit('update:visible', false)
+    emit('success')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>

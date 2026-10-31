@@ -87,16 +87,22 @@ public class AuthService {
     }
 
     /**
-     * 实体转登录用户（写入 JWT 的身份信息）
+     * 实体转登录用户（写入 JWT 的身份信息）。
+     * 码头端角色（ADMIN/GATE）不属于任何运输公司，公司维度必须置空，
+     * 否则后续按公司过滤数据的逻辑会把码头端用户误当成公司账号。
      */
-    public static LoginUser toLoginUser(SysUser user) {
+    private LoginUser toLoginUser(SysUser user) {
+        Long companyId = user.getCompanyId();
+        if (Constants.ROLE_ADMIN.equals(user.getRole()) || Constants.ROLE_GATE.equals(user.getRole())) {
+            companyId = null;
+        }
+
         return LoginUser.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
                 .name(user.getName())
                 .role(user.getRole())
-                .companyId(Constants.ROLE_ADMIN.equals(user.getRole())
-                        || Constants.ROLE_GATE.equals(user.getRole()) ? null : user.getCompanyId())
+                .companyId(companyId)
                 .driverId(user.getDriverId())
                 .build();
     }

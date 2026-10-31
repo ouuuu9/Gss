@@ -56,7 +56,7 @@ public class EirController {
                                                @RequestParam(required = false) String businessType,
                                                @RequestParam(required = false) Long companyId,
                                                @RequestParam(required = false) Long driverId) {
-        var scope = CompanyScope.of(companyId, driverId);
+        CompanyScope.Scope scope = CompanyScope.of(companyId, driverId);
         return Result.success(eirService.page(page, size, eirNo, status, businessType,
                 scope.companyId(), scope.driverId()));
     }
@@ -71,7 +71,7 @@ public class EirController {
                             @RequestParam(required = false) String bizType,
                             @RequestParam(required = false) Long companyId,
                             HttpServletResponse response) throws IOException {
-        var scope = CompanyScope.of(companyId, null);
+        CompanyScope.Scope scope = CompanyScope.of(companyId, null);
         // 复用分页查询，取一个足够大的 size 代替全量查询
         List<EirOrderVO> rows = eirService.page(1, 10000, null, status, bizType,
                 scope.companyId(), scope.driverId()).getRows();
@@ -79,21 +79,31 @@ public class EirController {
         String[] headers = {"单证编号", "业务类型", "箱号", "箱型", "公司名称", "拖车号",
                 "司机姓名", "状态", "录入时间", "派单时间", "预约时间", "进闸时间",
                 "出闸时间", "审单时间"};
-        ExcelExporter.export("EIR单证", headers, rows, vo -> new Object[]{
-                vo.getEirNo(),
-                ExcelExporter.bizTypeLabel(vo.getBusinessType()),
-                vo.getContainerNo(),
-                vo.getContainerSize() == null ? null : vo.getContainerSize() + (vo.getContainerType() == null ? "" : vo.getContainerType()),
-                vo.getCompanyName(),
-                vo.getPlateNo(),
-                vo.getDriverName(),
-                ExcelExporter.eirStatusLabel(vo.getStatus()),
-                vo.getCreateTime(),
-                vo.getDispatchTime(),
-                vo.getApptTime(),
-                vo.getGateInTime(),
-                vo.getGateOutTime(),
-                vo.getAuditTime()
+        ExcelExporter.export("EIR单证", headers, rows, vo -> {
+            // 箱型列展示“尺寸+箱型”，箱型缺失时只展示尺寸
+            String containerDesc = null;
+            if (vo.getContainerSize() != null) {
+                containerDesc = String.valueOf(vo.getContainerSize());
+                if (vo.getContainerType() != null) {
+                    containerDesc = containerDesc + vo.getContainerType();
+                }
+            }
+            return new Object[]{
+                    vo.getEirNo(),
+                    ExcelExporter.bizTypeLabel(vo.getBusinessType()),
+                    vo.getContainerNo(),
+                    containerDesc,
+                    vo.getCompanyName(),
+                    vo.getPlateNo(),
+                    vo.getDriverName(),
+                    ExcelExporter.eirStatusLabel(vo.getStatus()),
+                    vo.getCreateTime(),
+                    vo.getDispatchTime(),
+                    vo.getApptTime(),
+                    vo.getGateInTime(),
+                    vo.getGateOutTime(),
+                    vo.getAuditTime()
+            };
         }, "EIR单证_导出", response);
     }
 

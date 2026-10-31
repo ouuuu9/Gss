@@ -78,7 +78,10 @@ public class TractorController {
     @Operation(summary = "删除拖车")
     public Result<Void> delete(@PathVariable Long id) {
         boolean removed = tractorService.delete(id);
-        return removed ? Result.success()
-                : Result.success("该拖车存在历史单证，已改为停用状态保留记录", null);
+        if (removed) {
+            return Result.success();
+        }
+        // 有历史单证的拖车不做物理删除，改为停用保留，提示文案与前端同步
+        return Result.success("该拖车存在历史单证，已改为停用状态保留记录", null);
     }
 }

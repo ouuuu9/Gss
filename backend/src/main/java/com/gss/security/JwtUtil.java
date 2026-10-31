@@ -61,15 +61,26 @@ public class JwtUtil {
                 .parseSignedClaims(token)
                 .getPayload();
 
+        // 公司/司机维度只有部分角色有值，缺失时保持 null
+        Long companyId = null;
+        Object companyIdClaim = claims.get("companyId");
+        if (companyIdClaim != null) {
+            companyId = Long.valueOf(companyIdClaim.toString());
+        }
+
+        Long driverId = null;
+        Object driverIdClaim = claims.get("driverId");
+        if (driverIdClaim != null) {
+            driverId = Long.valueOf(driverIdClaim.toString());
+        }
+
         return LoginUser.builder()
                 .userId(Long.valueOf(claims.getSubject()))
                 .username(claims.get("username", String.class))
                 .name(claims.get("name", String.class))
                 .role(claims.get("role", String.class))
-                .companyId(claims.get("companyId") == null ? null
-                        : Long.valueOf(claims.get("companyId").toString()))
-                .driverId(claims.get("driverId") == null ? null
-                        : Long.valueOf(claims.get("driverId").toString()))
+                .companyId(companyId)
+                .driverId(driverId)
                 .build();
     }
 }

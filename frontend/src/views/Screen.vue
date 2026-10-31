@@ -56,6 +56,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { FullScreen, Aim } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { dashboardApi } from '@/api'
+import { EIR_STATUS, BUSINESS_TYPE } from '@/utils/dict'
 
 // refs for chart containers
 const pieRef = ref(null)
@@ -134,17 +135,6 @@ function scheduleReconnect() {
     connectWebSocket()
   }, 5000)
 }
-
-const statusLabels = {
-  CREATED: '已录入',
-  DISPATCHED: '已派单',
-  APPOINTED: '已预约',
-  GATE_IN: '已进闸',
-  GATE_OUT: '已出闸',
-  DONE: '已完成',
-  CANCELLED: '已作废'
-}
-const bizLabels = { 'PI-F': '提重', 'PI-E': '提空', 'GR-E': '还空', 'GR-F': '还重' }
 
 // 顶部指标卡片
 const statCards = computed(() => [
@@ -230,9 +220,10 @@ function initPieChart() {
   // 已初始化则复用实例，setOption 合并更新数据（WS 推送时重复调用）
   if (!pieChart) pieChart = echarts.init(pieRef.value, 'dark')
   const statusCountMap = screenData.value.statusCount || {}
-  const data = Object.keys(statusLabels).map((key) => ({
-    name: statusLabels[key],
-    value: statusCountMap[key] ?? 0
+  // 直接使用单证状态字典，顺序与标签文案和列表页保持一致
+  const data = EIR_STATUS.map((status) => ({
+    name: status.label,
+    value: statusCountMap[status.value] ?? 0
   }))
   pieChart.setOption({
     backgroundColor: 'transparent',
@@ -328,7 +319,9 @@ function initBarChart() {
   if (!barRef.value) return
   if (!barChart) barChart = echarts.init(barRef.value, 'dark')
   const bizCount = screenData.value.bizTypeCount || {}
-  const keys = Object.keys(bizLabels)
+  // 业务类型字典同时提供横轴文案和取数 key，不用再维护一份标签映射
+  const categories = BUSINESS_TYPE.map((type) => type.label)
+  const values = BUSINESS_TYPE.map((type) => bizCount[type.value] ?? 0)
   barChart.setOption({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
@@ -337,7 +330,7 @@ function initBarChart() {
       type: 'category',
       axisLine: { lineStyle: { color: '#5b7a99' } },
       axisLabel: { color: '#c5d2e3' },
-      data: keys.map((k) => bizLabels[k])
+      data: categories
     },
     yAxis: {
       type: 'value',
@@ -358,7 +351,7 @@ function initBarChart() {
           ])
         },
         label: { show: true, position: 'top', color: '#c5d2e3' },
-        data: keys.map((k) => bizCount[k] ?? 0)
+        data: values
       }
     ]
   })

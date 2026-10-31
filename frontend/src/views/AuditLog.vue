@@ -28,7 +28,7 @@
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="Search" @click="loadData">查询</el-button>
-        <el-button :icon="RefreshLeft" @click="resetQuery(() => dateRange = null)">重置</el-button>
+        <el-button :icon="RefreshLeft" @click="resetQuery(resetDateRange)">重置</el-button>
       </el-form-item>
     </el-form>
 
@@ -87,6 +87,11 @@ const { loading, tableData, total, query, loadData, resetQuery } = useCrudPage(a
 })
 
 const dateRange = ref(null)
+
+// 日期范围选择器不在 query 里，重置时需要单独清空
+function resetDateRange() {
+  dateRange.value = null
+}
 
 function handleDateChange(val) {
   query.startTime = val?.[0] ?? null

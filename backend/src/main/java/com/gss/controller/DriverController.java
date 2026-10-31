@@ -90,7 +90,10 @@ public class DriverController {
     @Operation(summary = "删除司机")
     public Result<Void> delete(@PathVariable Long id) {
         boolean removed = driverService.delete(id);
-        return removed ? Result.success()
-                : Result.success("该司机存在历史单证，已改为停用状态保留记录", null);
+        if (removed) {
+            return Result.success();
+        }
+        // 有历史单证的司机不做物理删除，改为停用保留，提示文案与前端同步
+        return Result.success("该司机存在历史单证，已改为停用状态保留记录", null);
     }
 }

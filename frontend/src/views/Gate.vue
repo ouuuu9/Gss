@@ -16,7 +16,7 @@
           placeholder="请输入 IC 卡号"
           clearable
           :prefix-icon="CreditCard"
-          @keyup.enter="doCheckin"
+          @keyup.enter="handleGateOp('checkin')"
         />
         <div class="quick-cards">
           <span class="quick-label">快捷选择</span>
@@ -32,10 +32,10 @@
         </div>
 
         <div class="action-btns">
-          <el-button type="success" size="large" :icon="Download" :loading="loading" class="op-btn" @click="doCheckin">
+          <el-button type="success" size="large" :icon="Download" :loading="loading" class="op-btn" @click="handleGateOp('checkin')">
             进闸办单
           </el-button>
-          <el-button type="warning" size="large" :icon="Upload" :loading="loading" class="op-btn" @click="doCheckout">
+          <el-button type="warning" size="large" :icon="Upload" :loading="loading" class="op-btn" @click="handleGateOp('checkout')">
             出闸办单
           </el-button>
         </div>
@@ -117,34 +117,30 @@ async function loadRecent() {
   }
 }
 
-async function handle(action) {
-  if (!icCardNo.value.trim()) {
+// 进闸与出闸走同一套刷卡流程，只有调用的接口和成功文案不同
+async function handleGateOp(action) {
+  const cardNo = icCardNo.value.trim()
+  if (!cardNo) {
     ElMessage.warning('请输入或选择 IC 卡号')
     return
   }
+
   loading.value = true
   try {
     if (action === 'checkin') {
-      await gateApi.checkin(icCardNo.value.trim())
+      await gateApi.checkin(cardNo)
       ElMessage.success('进闸办单成功')
     } else {
-      await gateApi.checkout(icCardNo.value.trim())
+      await gateApi.checkout(cardNo)
       ElMessage.success('出闸办单成功')
     }
     loadRecent()
   } catch (e) {
+    // 业务错误（如费用未缴清）由后端返回具体原因，优先展示它
     ElMessage.error(e.response?.data?.msg || e.message || '办单失败')
   } finally {
     loading.value = false
   }
-}
-
-function doCheckin() {
-  handle('checkin')
-}
-
-function doCheckout() {
-  handle('checkout')
 }
 
 onMounted(loadRecent)

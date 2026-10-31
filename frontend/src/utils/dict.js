@@ -34,13 +34,13 @@ export const ROLE = [
   { value: 'DRIVER', label: '司机' }
 ]
 
-// 通用字典查找
+// 通用字典查找：找不到时标签回退为原值，颜色回退为空
 export function dictLabel(list, value) {
   const item = list.find((d) => d.value === value)
-  return item ? item.label : value
+  return item?.label ?? value
 }
 
 export function dictType(list, value) {
   const item = list.find((d) => d.value === value)
-  return item ? item.type : ''
+  return item?.type ?? ''
 }

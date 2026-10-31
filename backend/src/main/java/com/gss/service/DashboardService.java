@@ -59,8 +59,8 @@ public class DashboardService {
         Map<String, Object> data = new LinkedHashMap<>();
 
         // 今日进出闸量
-        data.put("todayGateIn", eirMapper.countByStatusOnDate("GATE_IN", null));
-        data.put("todayGateOut", eirMapper.countByStatusOnDate("GATE_OUT", null));
+        data.put("todayGateIn", eirMapper.countByStatusOnDate(Constants.ST_GATE_IN, null));
+        data.put("todayGateOut", eirMapper.countByStatusOnDate(Constants.ST_GATE_OUT, null));
 
         // 收费统计
         data.put("paidAmount", feeMapper.sumPaidAmount());
@@ -136,11 +136,12 @@ public class DashboardService {
         data.put("tractorCount", tractorMapper.countPage(null, null, companyId));
         data.put("driverCount", driverMapper.countPage(null, null, companyId));
 
-        // 本公司缴费汇总
+        // 本公司缴费汇总：报表按公司分组，累加得到公司维度的已缴金额
         List<FeeReportVO> reports = feeMapper.selectReport(companyId);
-        BigDecimal paidAmount = reports.stream()
-                .map(FeeReportVO::getPaidAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal paidAmount = BigDecimal.ZERO;
+        for (FeeReportVO report : reports) {
+            paidAmount = paidAmount.add(report.getPaidAmount());
+        }
         data.put("paidAmount", paidAmount);
 
         return data;

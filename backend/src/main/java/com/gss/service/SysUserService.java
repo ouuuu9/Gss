@@ -1,6 +1,7 @@
 package com.gss.service;
 
 import com.gss.common.BusinessException;
+import com.gss.common.Constants;
 import com.gss.common.PageResult;
 import com.gss.dto.UserDTO;
 import com.gss.entity.Driver;
@@ -105,7 +106,8 @@ public class SysUserService {
         if (user.getId().equals(operator.getUserId())) {
             throw new BusinessException("不能删除当前登录账号");
         }
-        if ("ADMIN".equals(user.getRole()) && sysUserMapper.countPage(null, "ADMIN", null) <= 1) {
+        if (Constants.ROLE_ADMIN.equals(user.getRole())
+                && sysUserMapper.countPage(null, Constants.ROLE_ADMIN, null) <= 1) {
             throw new BusinessException("系统至少保留一个管理员账号");
         }
         sysUserMapper.deleteById(id);
@@ -135,7 +137,7 @@ public class SysUserService {
      */
     private void validateRoleCompany(UserDTO dto) {
         String role = dto.getRole();
-        boolean dockRole = "ADMIN".equals(role) || "GATE".equals(role);
+        boolean dockRole = Constants.ROLE_ADMIN.equals(role) || Constants.ROLE_GATE.equals(role);
         if (dockRole) {
             dto.setCompanyId(null);
             dto.setDriverId(null);
@@ -152,7 +154,7 @@ public class SysUserService {
         }
 
         // 司机账号必须关联司机档案，且档案必须属于当前公司
-        if ("DRIVER".equals(role)) {
+        if (Constants.ROLE_DRIVER.equals(role)) {
             if (dto.getDriverId() == null) {
                 throw new BusinessException("司机账号必须关联司机档案");
             }
