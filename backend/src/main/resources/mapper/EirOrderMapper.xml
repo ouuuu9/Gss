@@ -101,8 +101,10 @@
 
     <update id="updateStatus" parameterType="com.gss.entity.EirOrder">
         UPDATE eir_order
-        SET
-            <!-- 状态时间戳自动落库：派单记录派单时间，取消派单回退时清空；审单完成记录审单时间 -->
+        <!-- <set> 会自动去掉末尾多余的逗号：下面各列/条件块都可以安全地以逗号结尾，
+             避免「最后一个命中的 <if> 之后没有兜底列」时拼出 SET ... , WHERE 的坏语法 -->
+        <set>
+            <!-- 状态时间戳自动落库：派单记录派单时间，取消派单/撤销审核回退时清空；审单完成记录审单时间 -->
             <choose>
                 <when test="status == @com.gss.common.Constants@ST_DISPATCHED">dispatch_time = NOW(),</when>
                 <when test="status == @com.gss.common.Constants@ST_CREATED">dispatch_time = NULL,</when>
@@ -123,6 +125,7 @@
             <if test="rejectReason != null">reject_reason = #{rejectReason},</if>
             <if test="applyBy != null">apply_by = #{applyBy},</if>
             <if test="applyTime != null">apply_time = #{applyTime},</if>
+        </set>
         WHERE id = #{id}
         <if test="expectedStatus != null and expectedStatus != ''">
             AND status = #{expectedStatus}
