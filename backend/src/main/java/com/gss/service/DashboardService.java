@@ -69,6 +69,9 @@ public class DashboardService {
         // 单证状态分布（前端按 key 直接取值）
         Map<String, Long> statusCount = new LinkedHashMap<>();
         statusCount.put("CREATED", eirMapper.countByStatus(Constants.ST_CREATED, null));
+        statusCount.put("SUBMITTED", eirMapper.countByStatus(Constants.ST_SUBMITTED, null));
+        statusCount.put("APPROVED", eirMapper.countByStatus(Constants.ST_APPROVED, null));
+        statusCount.put("REJECTED", eirMapper.countByStatus(Constants.ST_REJECTED, null));
         statusCount.put("DISPATCHED", eirMapper.countByStatus(Constants.ST_DISPATCHED, null));
         statusCount.put("APPOINTED", eirMapper.countByStatus(Constants.ST_APPOINTED, null));
         statusCount.put("GATE_IN", eirMapper.countByStatus(Constants.ST_GATE_IN, null));
@@ -101,6 +104,9 @@ public class DashboardService {
 
         data.put("totalEir", eirMapper.countAll(null));
         data.put("createdCount", eirMapper.countByStatus(Constants.ST_CREATED, null));
+        data.put("submittedCount", eirMapper.countByStatus(Constants.ST_SUBMITTED, null));
+        data.put("approvedCount", eirMapper.countByStatus(Constants.ST_APPROVED, null));
+        data.put("rejectedCount", eirMapper.countByStatus(Constants.ST_REJECTED, null));
         data.put("dispatchedCount", eirMapper.countByStatus(Constants.ST_DISPATCHED, null));
         data.put("appointedCount", eirMapper.countByStatus(Constants.ST_APPOINTED, null));
         data.put("gateInCount", eirMapper.countByStatus(Constants.ST_GATE_IN, null));
@@ -125,6 +131,9 @@ public class DashboardService {
 
         data.put("totalEir", eirMapper.countAll(companyId));
         data.put("createdCount", eirMapper.countByStatus(Constants.ST_CREATED, companyId));
+        data.put("submittedCount", eirMapper.countByStatus(Constants.ST_SUBMITTED, companyId));
+        data.put("approvedCount", eirMapper.countByStatus(Constants.ST_APPROVED, companyId));
+        data.put("rejectedCount", eirMapper.countByStatus(Constants.ST_REJECTED, companyId));
         data.put("dispatchedCount", eirMapper.countByStatus(Constants.ST_DISPATCHED, companyId));
         data.put("appointedCount", eirMapper.countByStatus(Constants.ST_APPOINTED, companyId));
         data.put("gateInCount", eirMapper.countByStatus(Constants.ST_GATE_IN, companyId));

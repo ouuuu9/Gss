@@ -86,9 +86,12 @@
                c.code AS companyCode,
                c.name AS companyName,
                COUNT(1) AS totalCount,
-               SUM(CASE WHEN f.pay_status = 1 THEN 1 ELSE 0 END) AS paidCount,
+               SUM(CASE WHEN f.pay_status IN (1, 2) THEN 1 ELSE 0 END) AS paidCount,
+               SUM(CASE WHEN f.pay_status = 2 THEN 1 ELSE 0 END) AS refundedCount,
                SUM(CASE WHEN f.pay_status = 0 THEN 1 ELSE 0 END) AS unpaidCount,
-               IFNULL(SUM(CASE WHEN f.pay_status = 1 THEN f.amount ELSE 0 END), 0) AS paidAmount,
+               IFNULL(SUM(CASE WHEN f.pay_status IN (1, 2) THEN f.amount ELSE 0 END), 0) AS paidAmount,
+               IFNULL(SUM(CASE WHEN f.pay_status = 2 THEN f.amount ELSE 0 END), 0) AS refundAmount,
+               IFNULL(SUM(CASE WHEN f.pay_status = 1 THEN f.amount ELSE 0 END), 0) AS actualAmount,
                SUM(f.amount) AS totalAmount
         FROM fee_record f
         LEFT JOIN transport_company c ON c.id = f.company_id
@@ -101,12 +104,22 @@
         ORDER BY f.company_id ASC
     </select>
 
+    <update id="markRefunded">
+        UPDATE fee_record
+        SET pay_status = 2, refund_time = NOW(), refund_operator = #{operator}
+        WHERE id = #{id} AND pay_status = 1
+    </update>
+
     <select id="sumPaidAmount" resultType="java.math.BigDecimal">
         SELECT IFNULL(SUM(amount), 0) FROM fee_record WHERE pay_status = 1
     </select>
 
     <select id="sumUnpaidAmount" resultType="java.math.BigDecimal">
         SELECT IFNULL(SUM(amount), 0) FROM fee_record WHERE pay_status = 0
+    </select>
+
+    <select id="sumRefundedAmount" resultType="java.math.BigDecimal">
+        SELECT IFNULL(SUM(amount), 0) FROM fee_record WHERE pay_status = 2
     </select>
 
 </mapper>

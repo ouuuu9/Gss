@@ -26,15 +26,22 @@ class EirStateMachineTest {
     class ValidTransitions {
 
         @Test
-        @DisplayName("CREATED + DISPATCH → DISPATCHED")
-        void created_dispatch() {
-            assertEquals("DISPATCHED", sm.validateAndTransition("CREATED", EirEvent.DISPATCH));
+        @DisplayName("APPROVED + DISPATCH → DISPATCHED")
+        void approved_dispatch() {
+            assertEquals("DISPATCHED", sm.validateAndTransition("APPROVED", EirEvent.DISPATCH));
         }
 
         @Test
-        @DisplayName("DISPATCHED + CANCEL_DISPATCH → CREATED")
+        @DisplayName("M1/R2：CREATED + DISPATCH 应抛异常（未审核不可派单）")
+        void created_dispatch_invalid() {
+            assertThrows(BusinessException.class,
+                    () -> sm.validateAndTransition("CREATED", EirEvent.DISPATCH));
+        }
+
+        @Test
+        @DisplayName("DISPATCHED + CANCEL_DISPATCH → APPROVED（保持已审核）")
         void dispatched_cancelDispatch() {
-            assertEquals("CREATED", sm.validateAndTransition("DISPATCHED", EirEvent.CANCEL_DISPATCH));
+            assertEquals("APPROVED", sm.validateAndTransition("DISPATCHED", EirEvent.CANCEL_DISPATCH));
         }
 
         @Test
@@ -290,9 +297,15 @@ class EirStateMachineTest {
     class FullFlow {
 
         @Test
-        @DisplayName("正常全流程：录入→派单→预约→进闸→出闸→审单")
+        @DisplayName("正常全流程：提交→审核通过→派单→预约→进闸→出闸→审单")
         void happyPath() {
             String status = "CREATED";
+            status = sm.validateAndTransition(status, EirEvent.SUBMIT);
+            assertEquals("SUBMITTED", status);
+
+            status = sm.validateAndTransition(status, EirEvent.APPROVE);
+            assertEquals("APPROVED", status);
+
             status = sm.validateAndTransition(status, EirEvent.DISPATCH);
             assertEquals("DISPATCHED", status);
 
@@ -315,16 +328,16 @@ class EirStateMachineTest {
         }
 
         @Test
-        @DisplayName("派单后取消派单回到 CREATED")
+        @DisplayName("派单后取消派单回到 APPROVED")
         void dispatchThenCancel() {
-            String status = "CREATED";
+            String status = "APPROVED";
             status = sm.validateAndTransition(status, EirEvent.DISPATCH);
             assertEquals("DISPATCHED", status);
 
             status = sm.validateAndTransition(status, EirEvent.CANCEL_DISPATCH);
-            assertEquals("CREATED", status);
+            assertEquals("APPROVED", status);
 
-            // 回到 CREATED 后可以重新派单
+            // 回到 APPROVED 后可以重新派单
             status = sm.validateAndTransition(status, EirEvent.DISPATCH);
             assertEquals("DISPATCHED", status);
         }

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.RefundRecordMapper">
+
+    <insert id="insert" parameterType="com.gss.entity.RefundRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO refund_record (fee_record_id, eir_id, company_id, amount, status, applicant, remark)
+        VALUES (#{feeRecordId}, #{eirId}, #{companyId}, #{amount}, #{status}, #{applicant}, #{remark})
+    </insert>
+
+    <select id="selectById" resultType="com.gss.entity.RefundRecord">
+        SELECT * FROM refund_record WHERE id = #{id}
+    </select>
+
+    <select id="selectPendingByEirId" resultType="com.gss.entity.RefundRecord">
+        SELECT * FROM refund_record
+        WHERE eir_id = #{eirId} AND status = 'PENDING'
+        ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="selectApprovedByFeeId" resultType="com.gss.entity.RefundRecord">
+        SELECT * FROM refund_record
+        WHERE fee_record_id = #{feeRecordId} AND status = 'APPROVED'
+        ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="countByRefundNo" resultType="int">
+        SELECT COUNT(1) FROM refund_record WHERE refund_no = #{refundNo}
+    </select>
+
+    <!-- 审批通过：仅从 PENDING 流转，并发下只有一条能成功 -->
+    <update id="approve">
+        UPDATE refund_record
+        SET status = 'APPROVED',
+            refund_no = #{refundNo},
+            approver = #{approver},
+            approved_at = NOW()
+        WHERE id = #{id} AND status = 'PENDING'
+    </update>
+
+    <!-- 驳回：仅从 PENDING 流转 -->
+    <update id="reject">
+        UPDATE refund_record
+        SET status = 'REJECTED',
+            approver = #{approver},
+            approved_at = NOW(),
+            reject_reason = #{reason}
+        WHERE id = #{id} AND status = 'PENDING'
+    </update>
+
+    <select id="selectPage" resultType="com.gss.vo.RefundRecordVO">
+        SELECT r.id, r.refund_no, r.fee_record_id, r.eir_id, r.company_id, r.amount, r.status,
+               r.applicant, r.applied_at, r.approver, r.approved_at, r.reject_reason, r.remark, r.create_time,
+               e.eir_no AS eirNo,
+               c.name AS companyName
+        FROM refund_record r
+        LEFT JOIN eir_order e ON e.id = r.eir_id
+        LEFT JOIN transport_company c ON c.id = r.company_id
+        <where>
+            <if test='status != null and status != ""'>
+                AND r.status = #{status}
+            </if>
+            <if test="companyId != null">
+                AND r.company_id = #{companyId}
+            </if>
+        </where>
+        ORDER BY r.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM refund_record r
+        <where>
+            <if test='status != null and status != ""'>
+                AND r.status = #{status}
+            </if>
+            <if test="companyId != null">
+                AND r.company_id = #{companyId}
+            </if>
+        </where>
+    </select>
+
+</mapper>

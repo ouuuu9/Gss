@@ -40,8 +40,8 @@
       </el-col>
       <el-col :xs="12" :sm="6">
         <el-card shadow="hover" class="sum-card">
-          <div class="sum-value blue">¥ {{ summary.paidAmount }}</div>
-          <div class="sum-label">已收总金额</div>
+          <div class="sum-value blue">¥ {{ summary.actualAmount }}</div>
+          <div class="sum-label">实收总金额（已缴−已退）</div>
         </el-card>
       </el-col>
     </el-row>
@@ -57,6 +57,12 @@
           <el-tag type="success" size="small">{{ row.paidCount }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="refundedCount" label="已退笔数" width="100" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.refundedCount > 0" type="info" size="small">{{ row.refundedCount }}</el-tag>
+          <span v-else>0</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="unpaidCount" label="未缴笔数" width="100" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.unpaidCount > 0" type="danger" size="small">{{ row.unpaidCount }}</el-tag>
@@ -64,9 +70,19 @@
         </template>
       </el-table-column>
       <el-table-column prop="totalAmount" label="应收金额(元)" width="130" align="right" />
-      <el-table-column prop="paidAmount" label="已收金额(元)" width="130" align="right">
+      <el-table-column prop="paidAmount" label="已缴金额(元)" width="130" align="right">
         <template #default="{ row }">
           <span class="paid">¥ {{ row.paidAmount }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="refundAmount" label="已退金额(元)" width="130" align="right">
+        <template #default="{ row }">
+          <span class="refund">¥ {{ row.refundAmount }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="actualAmount" label="实收金额(元)" width="130" align="right">
+        <template #default="{ row }">
+          <span class="actual">¥ {{ row.actualAmount }}</span>
         </template>
       </el-table-column>
       <el-table-column label="收缴率" width="180">
@@ -96,12 +112,16 @@ const summary = reactive({
   totalCount: 0,
   paidCount: 0,
   unpaidCount: 0,
-  paidAmount: '0.00'
+  paidAmount: '0.00',
+  refundAmount: '0.00',
+  actualAmount: '0.00'
 })
 
+// 收缴率 = 实收金额 / 应收金额（已退款部分不计入实收）
 function rate(row) {
-  if (!row.totalCount) return 0
-  return Math.round((row.paidCount / row.totalCount) * 100)
+  const total = Number(row.totalAmount || 0)
+  if (!total) return 0
+  return Math.round((Number(row.actualAmount || 0) / total) * 100)
 }
 
 async function loadData() {
@@ -115,24 +135,30 @@ async function loadData() {
     let paidCount = 0
     let unpaidCount = 0
     let paidAmount = 0
+    let refundAmount = 0
+    let actualAmount = 0
     for (const row of reportData.value) {
       totalCount += Number(row.totalCount || 0)
       paidCount += Number(row.paidCount || 0)
       unpaidCount += Number(row.unpaidCount || 0)
       paidAmount += Number(row.paidAmount || 0)
+      refundAmount += Number(row.refundAmount || 0)
+      actualAmount += Number(row.actualAmount || 0)
     }
     summary.totalCount = totalCount
     summary.paidCount = paidCount
     summary.unpaidCount = unpaidCount
     summary.paidAmount = paidAmount.toFixed(2)
+    summary.refundAmount = refundAmount.toFixed(2)
+    summary.actualAmount = actualAmount.toFixed(2)
   } finally {
     loading.value = false
   }
 }
 
 // 表格合计行：序号和公司编码留空，公司名显示“合计”，数值列求和
-const COUNT_FIELDS = ['totalCount', 'paidCount', 'unpaidCount']
-const AMOUNT_FIELDS = ['totalAmount', 'paidAmount']
+const COUNT_FIELDS = ['totalCount', 'paidCount', 'refundedCount', 'unpaidCount']
+const AMOUNT_FIELDS = ['totalAmount', 'paidAmount', 'refundAmount', 'actualAmount']
 
 function getSummary({ columns, data }) {
   // 对指定字段求和；金额列保留两位小数
@@ -226,6 +252,16 @@ loadData()
 
 .paid {
   color: #67c23a;
+  font-weight: bold;
+}
+
+.refund {
+  color: #f56c6c;
+  font-weight: bold;
+}
+
+.actual {
+  color: #409eff;
   font-weight: bold;
 }
 </style>

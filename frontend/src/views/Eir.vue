@@ -24,6 +24,7 @@
         <el-button type="primary" :icon="Search" @click="loadData">查询</el-button>
         <el-button :icon="RefreshLeft" @click="resetQuery">重置</el-button>
         <el-button v-if="isAdmin" type="success" :icon="Plus" @click="openEirDialog()">录入单证</el-button>
+        <el-button v-if="isCompany" type="success" :icon="EditPen" @click="openApplyDialog()">办单申请</el-button>
         <el-button
           v-if="isCompany" type="primary" :icon="Promotion"
           :disabled="selectedRows.length === 0" @click="openBatchDispatch()"
@@ -61,6 +62,19 @@
           <span v-else>—</span>
         </template>
       </el-table-column>
+      <el-table-column label="办单审核" width="110" align="center">
+        <template #default="{ row }">
+          <el-tooltip
+            v-if="row.reviewStatus === 'REJECTED' && row.rejectReason"
+            :content="'驳回原因：' + row.rejectReason" placement="top"
+          >
+            <el-tag type="danger" size="small">{{ dictLabel(REVIEW_STATUS, row.reviewStatus) }}</el-tag>
+          </el-tooltip>
+          <el-tag v-else :type="dictType(REVIEW_STATUS, row.reviewStatus)" size="small">
+            {{ dictLabel(REVIEW_STATUS, row.reviewStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="dictType(EIR_STATUS, row.status)">
@@ -72,16 +86,21 @@
         <template #default="{ row }">
           <!-- ADMIN -->
           <el-button v-if="isAdmin && row.status === 'GATE_OUT'" link type="success" @click="handleAudit(row)">审单</el-button>
+          <el-button
+            v-if="isAdmin && ['APPROVED', 'DISPATCHED', 'APPOINTED'].includes(row.status)"
+            link type="danger" @click="handleRevokeReview(row)"
+          >撤销审核</el-button>
           <el-button v-if="isAdmin" link type="primary" @click="openEirDialog(row)">修改</el-button>
           <!-- COMPANY -->
-          <el-button v-if="isCompany && row.status === 'CREATED'" link type="primary" @click="openDispatch(row)">派单</el-button>
+          <el-button v-if="isCompany && row.status === 'APPROVED'" link type="primary" @click="openDispatch(row)">派单</el-button>
+          <el-button v-if="isCompany && row.status === 'REJECTED'" link type="warning" @click="handleResubmit(row)">重新提交</el-button>
           <el-button v-if="isCompany && row.status === 'DISPATCHED'" link type="warning" @click="handleCancelDispatch(row)">取消派单</el-button>
           <!-- DRIVER -->
           <el-button v-if="isDriver && row.status === 'DISPATCHED'" link type="warning" @click="openBook(row)">预约</el-button>
           <el-button v-if="isDriver && row.status === 'APPOINTED'" link type="danger" @click="handleCancelAppt(row)">取消预约</el-button>
           <!-- 作废 -->
           <el-button
-            v-if="(isAdmin || isCompany) && ['CREATED', 'DISPATCHED', 'APPOINTED'].includes(row.status)"
+            v-if="(isAdmin || isCompany) && ['CREATED', 'SUBMITTED', 'APPROVED', 'REJECTED', 'DISPATCHED', 'APPOINTED'].includes(row.status)"
             link type="danger" @click="handleCancel(row)"
           >作废</el-button>
         </template>
@@ -131,6 +150,43 @@
       </template>
     </el-dialog>
 
+    <!-- 客户办单申请弹窗（M1）：提交后进入待审核，审核通过才能派单 -->
+    <el-dialog v-model="applyDialog" title="提交办单申请" width="520px">
+      <el-alert
+        title="提交后由码头管理员审核；审核通过后方可派单、司机方可预约。驳回会显示原因，可修改后重新提交。"
+        type="info" :closable="false" show-icon style="margin-bottom: 16px"
+      />
+      <el-form ref="applyFormRef" :model="applyForm" :rules="applyRules" label-width="90px">
+        <el-form-item label="业务类型" prop="businessType">
+          <el-select v-model="applyForm.businessType" style="width: 100%">
+            <el-option v-for="b in BUSINESS_TYPE" :key="b.value" :label="b.label" :value="b.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="集装箱号" prop="containerNo">
+          <el-input v-model="applyForm.containerNo" placeholder="如 CSNU1000003" />
+        </el-form-item>
+        <el-form-item label="箱尺寸" prop="containerSize">
+          <el-radio-group v-model="applyForm.containerSize">
+            <el-radio :value="20">20</el-radio>
+            <el-radio :value="40">40</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="箱型" prop="containerType">
+          <el-radio-group v-model="applyForm.containerType">
+            <el-radio value="GP">GP</el-radio>
+            <el-radio value="HQ">HQ</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="applyForm.remark" type="textarea" :rows="2" placeholder="选填" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="applyDialog = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitApply">提交申请</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 派单弹窗（单条/批量共用） -->
     <el-dialog v-model="dispatchDialog" :title="dispatchEirIds.length > 1 ? '批量派单' : '单证派单'" width="520px">
       <el-alert
@@ -171,10 +227,10 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, RefreshLeft, Plus, Download, Promotion } from '@element-plus/icons-vue'
+import { Search, RefreshLeft, Plus, Download, Promotion, EditPen } from '@element-plus/icons-vue'
 import { eirApi, companyApi, driverApi, tractorApi, gateApi, apptApi } from '@/api'
 import { useUserStore } from '@/store/user'
-import { EIR_STATUS, BUSINESS_TYPE, dictLabel, dictType } from '@/utils/dict'
+import { EIR_STATUS, REVIEW_STATUS, BUSINESS_TYPE, dictLabel, dictType } from '@/utils/dict'
 import { exportExcel } from '@/utils/download'
 import ApptBookDialog from '@/components/ApptBookDialog.vue'
 import { useCrudPage } from '@/utils/useCrudPage'
@@ -209,6 +265,50 @@ const eirRules = {
   companyId: [{ required: true, message: '请选择作业公司', trigger: 'change' }]
 }
 
+/* ---------- 办单申请（COMPANY，M1） ---------- */
+const applyDialog = ref(false)
+const applyFormRef = ref()
+const applyForm = reactive({
+  businessType: 'PI-E', containerNo: '', containerSize: 20, containerType: 'GP', remark: ''
+})
+const applyRules = {
+  businessType: [{ required: true, message: '请选择业务类型', trigger: 'change' }],
+  containerNo: [{ required: true, message: '请输入集装箱号', trigger: 'blur' }],
+  containerSize: [{ required: true, message: '请选择箱尺寸', trigger: 'change' }],
+  containerType: [{ required: true, message: '请选择箱型', trigger: 'change' }]
+}
+
+function openApplyDialog() {
+  Object.assign(applyForm, { businessType: 'PI-E', containerNo: '', containerSize: 20, containerType: 'GP', remark: '' })
+  applyDialog.value = true
+}
+
+async function submitApply() {
+  const valid = await applyFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    return
+  }
+  submitting.value = true
+  try {
+    await eirApi.apply(applyForm)
+    ElMessage.success('办单申请已提交，等待管理员审核')
+    applyDialog.value = false
+    loadData()
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function handleResubmit(row) {
+  await ElMessageBox.confirm(
+    `单证 ${row.eirNo} 已被驳回${row.rejectReason ? '（原因：' + row.rejectReason + '）' : ''}，确定重新提交审核吗？`,
+    '重新提交', { confirmButtonText: '重新提交', cancelButtonText: '取消', type: 'warning' }
+  )
+  await eirApi.resubmit(row.id)
+  ElMessage.success('已重新提交，等待管理员审核')
+  loadData()
+}
+
 /* ---------- 派单弹窗（单条/批量共用） ---------- */
 const dispatchDialog = ref(false)
 const dispatchEirIds = ref([])
@@ -218,9 +318,9 @@ const companyDrivers = ref([])
 const companyTractors = ref([])
 const selectedRows = ref([])
 
-// 仅 CREATED 状态可勾选参与批量派单
+// 仅审核通过（APPROVED）的单证可勾选参与批量派单（M1：未审核/已驳回不可派单）
 function canSelectCreated(row) {
-  return row.status === 'CREATED'
+  return row.status === 'APPROVED'
 }
 
 function onSelectionChange(rows) {
@@ -347,8 +447,38 @@ async function handleCancel(row) {
   await ElMessageBox.confirm(`确定作废单证 ${row.eirNo} 吗？`, '作废确认', {
     confirmButtonText: '确定作废', cancelButtonText: '取消', type: 'warning'
   })
-  await eirApi.cancel(row.id)
-  ElMessage.success('单证已作废')
+  const outcome = await eirApi.cancel(row.id)
+  ElMessage.success(outcome === 'REFUND_PENDING' ? '已提交退款申请，等待管理员审批' : '单证已作废')
+  loadData()
+}
+
+/**
+ * 撤销办单审核（ADMIN）：已通过/已派单/已预约 → 驳回。
+ * 已预约的会同时取消预约并回补名额，已派单的会清空派单信息，确认框里说明清楚影响。
+ */
+async function handleRevokeReview(row) {
+  const impact = row.status === 'APPOINTED'
+    ? '将同时取消该单证的有效预约并回补时段名额'
+    : row.status === 'DISPATCHED'
+      ? '将同时清空派单司机与拖车信息'
+      : '该单证将退回未通过状态'
+  const { value } = await ElMessageBox.prompt(
+    `确定撤销单证 ${row.eirNo} 的办单审核吗？${impact}。请填写撤销原因（1-200 字）：`,
+    '撤销办单审核',
+    {
+      confirmButtonText: '确认撤销', cancelButtonText: '取消',
+      inputType: 'textarea',
+      inputValidator: (v) => {
+        const text = (v || '').trim()
+        if (!text) {
+          return '撤销原因不能为空'
+        }
+        return text.length <= 200 ? true : '撤销原因不能超过 200 字'
+      }
+    }
+  )
+  await eirApi.revokeReview(row.id, value.trim())
+  ElMessage.success('已撤销审核，单证退回驳回状态')
   loadData()
 }
 

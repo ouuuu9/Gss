@@ -9,7 +9,9 @@ import com.gss.common.PageResult;
 import com.gss.common.Result;
 import com.gss.dto.BatchDispatchDTO;
 import com.gss.dto.DispatchDTO;
+import com.gss.dto.EirApplyDTO;
 import com.gss.dto.EirDTO;
+import com.gss.dto.EirRejectDTO;
 import com.gss.entity.EirOrder;
 import com.gss.security.RequireRole;
 import com.gss.security.UserContext;
@@ -123,7 +125,7 @@ public class EirController {
     @Idempotent
     @Operation(summary = "录入单证")
     public Result<Void> create(@Valid @RequestBody EirDTO dto) {
-        eirService.create(dto);
+        eirService.create(dto, UserContext.require());
         return Result.success();
     }
 
@@ -141,6 +143,83 @@ public class EirController {
     }
 
     /**
+     * 客户提交办单申请（COMPANY）：提交后进入待审核，审核通过才能派单/预约
+     */
+    @PostMapping("/apply")
+    @RequireRole("COMPANY")
+    @AuditLog("提交办单申请")
+    @RefreshScreen
+    @Operation(summary = "提交办单申请")
+    public Result<Void> apply(@Valid @RequestBody EirApplyDTO dto) {
+        eirService.apply(dto, UserContext.require());
+        return Result.success();
+    }
+
+    /**
+     * 重新提交已驳回的办单申请（COMPANY）
+     */
+    @PostMapping("/{id}/resubmit")
+    @RequireRole("COMPANY")
+    @AuditLog("重新提交办单申请")
+    @RefreshScreen
+    @Operation(summary = "重新提交办单申请")
+    public Result<Void> resubmit(@PathVariable Long id) {
+        eirService.resubmit(id, UserContext.require());
+        return Result.success();
+    }
+
+    /**
+     * 办单审核待办列表（ADMIN）：只返回待审核单证，按申请时间先来先审
+     */
+    @GetMapping("/review-pending")
+    @RequireRole("ADMIN")
+    @Operation(summary = "办单审核待办列表")
+    public Result<PageResult<EirOrderVO>> reviewPending(@RequestParam(required = false) Integer page,
+                                                        @RequestParam(required = false) Integer size) {
+        return Result.success(eirService.reviewPage(page, size));
+    }
+
+    /**
+     * 办单审核通过（ADMIN）
+     */
+    @PostMapping("/{id}/approve")
+    @RequireRole("ADMIN")
+    @AuditLog("办单审核通过")
+    @RefreshScreen
+    @Operation(summary = "办单审核通过")
+    public Result<Void> approve(@PathVariable Long id) {
+        eirService.approve(id, UserContext.require());
+        return Result.success();
+    }
+
+    /**
+     * 办单审核驳回（ADMIN）：驳回原因必填，同一事务内取消关联预约并回补名额
+     */
+    @PostMapping("/{id}/reject")
+    @RequireRole("ADMIN")
+    @AuditLog("办单审核驳回")
+    @RefreshScreen
+    @Operation(summary = "办单审核驳回")
+    public Result<Void> reject(@PathVariable Long id, @Valid @RequestBody EirRejectDTO dto) {
+        eirService.reject(id, dto, UserContext.require());
+        return Result.success();
+    }
+
+    /**
+     * 撤销办单审核（ADMIN）：已通过/已派单/已预约 → 驳回。
+     * 已预约的先取消预约并回补名额；已派单的同时清空派单信息。
+     */
+    @PostMapping("/{id}/revoke-review")
+    @RequireRole("ADMIN")
+    @AuditLog("撤销办单审核")
+    @RefreshScreen
+    @Operation(summary = "撤销办单审核")
+    public Result<Void> revokeReview(@PathVariable Long id, @Valid @RequestBody EirRejectDTO dto) {
+        eirService.revokeReview(id, dto, UserContext.require());
+        return Result.success();
+    }
+
+    /**
      * 作废单证（ADMIN / 本公司 COMPANY）
      */
     @PostMapping("/{id}/cancel")
@@ -148,9 +227,12 @@ public class EirController {
     @AuditLog("作废单证")
     @RefreshScreen
     @Operation(summary = "作废单证")
-    public Result<Void> cancel(@PathVariable Long id) {
-        eirService.cancel(id, UserContext.require());
-        return Result.success();
+    public Result<String> cancel(@PathVariable Long id) {
+        String outcome = eirService.cancel(id, UserContext.require());
+        if ("REFUND_PENDING".equals(outcome)) {
+            return Result.success("已提交退款申请，等待管理员审批", outcome);
+        }
+        return Result.success("单证已作废", outcome);
     }
 
     /**

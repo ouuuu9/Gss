@@ -132,6 +132,9 @@ public class ExcelExporter {
         }
         return switch (status) {
             case "CREATED" -> "已录入";
+            case "SUBMITTED" -> "待审核";
+            case "APPROVED" -> "审核通过";
+            case "REJECTED" -> "已驳回";
             case "DISPATCHED" -> "已派单";
             case "APPOINTED" -> "已预约";
             case "GATE_IN" -> "已进闸";
@@ -160,6 +163,6 @@ public class ExcelExporter {
         if (payStatus == null) {
             return null;
         }
-        return payStatus == 1 ? "已缴" : "未缴";
+        return payStatus == 1 ? "已缴" : payStatus == 2 ? "已退" : "未缴";
     }
 }

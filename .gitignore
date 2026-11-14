@@ -75,3 +75,6 @@ logs/
 *.tmp
 *.temp
 *~
+
+# 本机验证用临时目录（MySQL 实例、日志等）
+work/

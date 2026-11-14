@@ -3,12 +3,22 @@
 // 单证状态
 export const EIR_STATUS = [
   { value: 'CREATED', label: '已录入', type: 'info' },
+  { value: 'SUBMITTED', label: '待审核', type: 'warning' },
+  { value: 'APPROVED', label: '审核通过', type: 'success' },
+  { value: 'REJECTED', label: '已驳回', type: 'danger' },
   { value: 'DISPATCHED', label: '已派单', type: 'primary' },
   { value: 'APPOINTED', label: '已预约', type: 'warning' },
   { value: 'GATE_IN', label: '已进闸', type: 'primary' },
   { value: 'GATE_OUT', label: '已出闸', type: 'success' },
   { value: 'DONE', label: '已完成', type: 'success' },
   { value: 'CANCELLED', label: '已作废', type: 'danger' }
+]
+
+// 办单审核状态（review = 办单审核，与闸口审单 audit 区分）
+export const REVIEW_STATUS = [
+  { value: 'PENDING', label: '待审核', type: 'warning' },
+  { value: 'APPROVED', label: '已通过', type: 'success' },
+  { value: 'REJECTED', label: '已驳回', type: 'danger' }
 ]
 
 // 业务类型
@@ -24,6 +34,20 @@ export const APPT_STATUS = [
   { value: 'ACTIVE', label: '有效', type: 'success' },
   { value: 'CANCELLED', label: '已取消', type: 'info' },
   { value: 'EXPIRED', label: '已过期', type: 'warning' }
+]
+
+// 缴费状态（2=已退）
+export const PAY_STATUS = [
+  { value: 0, label: '未缴', type: 'danger' },
+  { value: 1, label: '已缴', type: 'success' },
+  { value: 2, label: '已退', type: 'info' }
+]
+
+// 退款状态
+export const REFUND_STATUS = [
+  { value: 'PENDING', label: '待审批', type: 'warning' },
+  { value: 'APPROVED', label: '已退款', type: 'success' },
+  { value: 'REJECTED', label: '已驳回', type: 'danger' }
 ]
 
 // 系统角色

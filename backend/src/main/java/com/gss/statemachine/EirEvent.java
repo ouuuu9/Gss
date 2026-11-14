@@ -10,5 +10,9 @@ public final class EirEvent {
     public static final String GATE_IN = "GATE_IN";            // 进闸
     public static final String GATE_OUT = "GATE_OUT";          // 出闸
     public static final String AUDIT = "AUDIT";                 // 审单
+    public static final String SUBMIT = "SUBMIT";               // 客户提交办单申请
+    public static final String APPROVE = "APPROVE";             // 办单审核通过
+    public static final String REJECT = "REJECT";               // 办单审核驳回
+    public static final String REVOKE_REVIEW = "REVOKE_REVIEW"; // 撤销办单审核（已通过/已派单/已预约 → 驳回）
     public static final String CANCEL = "CANCEL";               // 作废
 }

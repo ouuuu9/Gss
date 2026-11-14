@@ -18,12 +18,18 @@
                e.driver_id, d.name AS driverName,
                e.status, e.dispatch_time, e.gate_in_time, e.gate_out_time, e.audit_time,
                e.remark, e.create_time,
+               e.apply_by AS applyBy, ap.name AS applicantName, e.apply_time AS applyTime,
+               e.review_status AS reviewStatus, e.review_by AS reviewBy,
+               rv.name AS reviewerName, e.review_time AS reviewTime,
+               e.reject_reason AS rejectReason,
                a.appt_time AS apptTime,
                f.pay_status AS payStatus
         FROM eir_order e
         LEFT JOIN transport_company c ON c.id = e.company_id
         LEFT JOIN tractor t ON t.id = e.tractor_id
         LEFT JOIN driver d ON d.id = e.driver_id
+        LEFT JOIN sys_user ap ON ap.id = e.apply_by
+        LEFT JOIN sys_user rv ON rv.id = e.review_by
         LEFT JOIN (
             SELECT eir_id, MAX(create_time) AS appt_time FROM appointment GROUP BY eir_id
         ) a ON a.eir_id = e.id
@@ -73,9 +79,11 @@
 
     <insert id="insert" parameterType="com.gss.entity.EirOrder" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO eir_order (eir_no, business_type, container_no, container_size, container_type,
-                               company_id, status, remark)
+                               company_id, status, remark,
+                               apply_by, apply_time, review_status, review_by, review_time, reject_reason)
         VALUES (#{eirNo}, #{businessType}, #{containerNo}, #{containerSize}, #{containerType},
-                #{companyId}, #{status}, #{remark})
+                #{companyId}, #{status}, #{remark},
+                #{applyBy}, #{applyTime}, #{reviewStatus}, #{reviewBy}, #{reviewTime}, #{rejectReason})
     </insert>
 
     <update id="update" parameterType="com.gss.entity.EirOrder">
@@ -98,13 +106,23 @@
             <choose>
                 <when test="status == @com.gss.common.Constants@ST_DISPATCHED">dispatch_time = NOW(),</when>
                 <when test="status == @com.gss.common.Constants@ST_CREATED">dispatch_time = NULL,</when>
+                <when test="status == @com.gss.common.Constants@ST_APPROVED">dispatch_time = NULL,</when>
+                <!-- 撤销审核落 REJECTED 时同样清空派单时间（驳回本身无派单时间，清空无副作用） -->
+                <when test="status == @com.gss.common.Constants@ST_REJECTED">dispatch_time = NULL,</when>
                 <when test="status == @com.gss.common.Constants@ST_DONE">audit_time = NOW(),</when>
             </choose>
             status = #{status},
             tractor_id = #{tractorId},
             driver_id = #{driverId},
             gate_in_time = #{gateInTime},
-            gate_out_time = #{gateOutTime}
+            gate_out_time = #{gateOutTime},
+            <!-- 办单审核字段：仅非空时覆盖（review = 办单审核，audit_time 仍归闸口审单） -->
+            <if test="reviewStatus != null">review_status = #{reviewStatus},</if>
+            <if test="reviewBy != null">review_by = #{reviewBy},</if>
+            <if test="reviewTime != null">review_time = #{reviewTime},</if>
+            <if test="rejectReason != null">reject_reason = #{rejectReason},</if>
+            <if test="applyBy != null">apply_by = #{applyBy},</if>
+            <if test="applyTime != null">apply_time = #{applyTime},</if>
         WHERE id = #{id}
         <if test="expectedStatus != null and expectedStatus != ''">
             AND status = #{expectedStatus}
@@ -185,6 +203,42 @@
         ) d
         GROUP BY d.date
         ORDER BY d.date
+    </select>
+
+    <update id="updateSubmit" parameterType="com.gss.entity.EirOrder">
+        UPDATE eir_order
+        SET status = #{status},
+            apply_by = #{applyBy},
+            apply_time = NOW(),
+            review_status = 'PENDING',
+            review_by = NULL,
+            review_time = NULL,
+            reject_reason = NULL
+        WHERE id = #{id}
+        <if test="expectedStatus != null and expectedStatus != ''">
+            AND status = #{expectedStatus}
+        </if>
+    </update>
+
+    <select id="selectReviewPage" resultType="com.gss.vo.EirOrderVO">
+        SELECT e.id, e.eir_no, e.business_type, e.container_no, e.container_size, e.container_type,
+               e.company_id, c.name AS companyName,
+               e.status, e.remark, e.create_time,
+               e.apply_by AS applyBy, ap.name AS applicantName, e.apply_time AS applyTime,
+               e.review_status AS reviewStatus, e.review_by AS reviewBy,
+               rv.name AS reviewerName, e.review_time AS reviewTime,
+               e.reject_reason AS rejectReason
+        FROM eir_order e
+        LEFT JOIN transport_company c ON c.id = e.company_id
+        LEFT JOIN sys_user ap ON ap.id = e.apply_by
+        LEFT JOIN sys_user rv ON rv.id = e.review_by
+        WHERE e.status = 'SUBMITTED'
+        ORDER BY e.apply_time ASC, e.id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countReviewPending" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM eir_order WHERE status = 'SUBMITTED'
     </select>
 
     <select id="selectRecentGateOps" resultType="com.gss.vo.EirOrderVO">

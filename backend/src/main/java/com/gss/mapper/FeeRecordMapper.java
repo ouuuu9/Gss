@@ -47,6 +47,10 @@ public interface FeeRecordMapper {
     int markPaidBatch(@Param("ids") List<Long> ids,
                       @Param("operator") String operator);
 
+    /** 退款：已缴（1）→ 已退（2），并发下仅一次生效 */
+    int markRefunded(@Param("id") Long id,
+                     @Param("operator") String operator);
+
     /** 收费报表：按公司汇总缴费笔数与金额 */
     List<FeeReportVO> selectReport(@Param("companyId") Long companyId);
 
@@ -55,4 +59,7 @@ public interface FeeRecordMapper {
 
     /** 未缴费总额 */
     java.math.BigDecimal sumUnpaidAmount();
+
+    /** 已退款总额 */
+    java.math.BigDecimal sumRefundedAmount();
 }

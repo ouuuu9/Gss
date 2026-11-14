@@ -38,6 +38,20 @@ public class EirOrderVO {
     /** 缴费状态：null未生成收费/0未缴/1已缴 */
     private Integer payStatus;
     private LocalDateTime createTime;
+    /** 办单申请人ID / 申请人姓名 */
+    private Long applyBy;
+    private String applicantName;
+    /** 办单申请时间 */
+    private LocalDateTime applyTime;
+    /** 办单审核状态：PENDING/APPROVED/REJECTED */
+    private String reviewStatus;
+    /** 办单审核人ID / 审核人姓名 */
+    private Long reviewBy;
+    private String reviewerName;
+    /** 办单审核时间 */
+    private LocalDateTime reviewTime;
+    /** 驳回原因 */
+    private String rejectReason;
     /** 最近闸口操作类型：GATE_IN/GATE_OUT/AUDIT（闸口办单台账用） */
     private String opType;
     /** 最近闸口操作时间（取进闸/出闸/审单时间中最新者） */

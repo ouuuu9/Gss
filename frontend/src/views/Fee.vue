@@ -9,6 +9,7 @@
         <el-select v-model="query.payStatus" placeholder="全部" clearable style="width: 120px">
           <el-option label="未缴" :value="0" />
           <el-option label="已缴" :value="1" />
+          <el-option label="已退" :value="2" />
         </el-select>
       </el-form-item>
       <el-form-item v-if="isAdmin" label="所属公司">
@@ -53,8 +54,8 @@
       </el-table-column>
       <el-table-column label="缴费状态" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="row.payStatus === 1 ? 'success' : 'danger'">
-            {{ row.payStatus === 1 ? '已缴费' : '未缴费' }}
+          <el-tag :type="row.payStatus === 1 ? 'success' : row.payStatus === 2 ? 'info' : 'danger'">
+            {{ row.payStatus === 1 ? '已缴费' : row.payStatus === 2 ? '已退款' : '未缴费' }}
           </el-tag>
         </template>
       </el-table-column>

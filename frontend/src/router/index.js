@@ -37,6 +37,12 @@ const routes = [
         meta: { title: 'EIR单证管理', icon: 'Document', roles: ['ADMIN', 'GATE', 'COMPANY', 'DRIVER'], group: '作业中心' }
       },
       {
+        path: 'eir-audit',
+        name: 'EirAudit',
+        component: () => import('@/views/EirAudit.vue'),
+        meta: { title: '办单审核', icon: 'DocumentChecked', roles: ['ADMIN'], group: '作业中心' }
+      },
+      {
         path: 'appointments',
         name: 'Appointment',
         component: () => import('@/views/Appointment.vue'),
@@ -53,6 +59,12 @@ const routes = [
         name: 'Fee',
         component: () => import('@/views/Fee.vue'),
         meta: { title: '收费管理', icon: 'Wallet', roles: ['ADMIN', 'COMPANY'], group: '作业中心' }
+      },
+      {
+        path: 'refunds',
+        name: 'Refund',
+        component: () => import('@/views/Refund.vue'),
+        meta: { title: '退款审批', icon: 'RefreshLeft', roles: ['ADMIN', 'COMPANY'], group: '作业中心' }
       },
       {
         path: 'report',

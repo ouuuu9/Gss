@@ -6,14 +6,13 @@ import com.gss.common.EirStatus;
 import com.gss.common.PageResult;
 import com.gss.dto.BatchDispatchDTO;
 import com.gss.dto.DispatchDTO;
+import com.gss.dto.EirApplyDTO;
 import com.gss.dto.EirDTO;
-import com.gss.entity.Appointment;
+import com.gss.dto.EirRejectDTO;
 import com.gss.entity.Driver;
 import com.gss.entity.EirOrder;
 import com.gss.entity.FeeRecord;
 import com.gss.entity.Tractor;
-import com.gss.mapper.AppointmentMapper;
-import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.DriverMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.FeeRecordMapper;
@@ -29,7 +28,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -57,8 +55,8 @@ public class EirService {
     private final TractorMapper tractorMapper;
     private final TransportCompanyMapper companyMapper;
     private final FeeRecordMapper feeMapper;
-    private final AppointmentMapper appointmentMapper;
-    private final ApptSlotCapacityMapper slotCapacityMapper;
+    private final RefundService refundService;
+    private final EirCanceller canceller;
     private final EirStateMachine stateMachine;
 
     @Value("${gss.fee.amount}")
@@ -114,11 +112,16 @@ public class EirService {
     }
 
     /**
-     * 录入单证（ADMIN）：初始状态 CREATED
+     * 录入单证（ADMIN 代录）：直接视为办单审核通过（M1）。
+     * 码头端代录代表工作人员已核对单据，落库时同步写全审核留痕（review_by / review_time），
+     * 保证不会出现「状态已通过但没有审核记录」的黑盒数据。
      */
     @Transactional
-    public void create(EirDTO dto) {
+    public void create(EirDTO dto, LoginUser operator) {
         validateBusiness(dto);
+
+        // 经状态机取目标状态：代录 = CREATED → APPROVED，禁止在 Service 里直接 setStatus 绕过规则
+        String targetStatus = stateMachine.validateAndTransition(Constants.ST_CREATED, EirEvent.APPROVE);
 
         EirOrder eir = new EirOrder();
         eir.setEirNo(generateEirNo(dto.getEirNo()));
@@ -127,9 +130,189 @@ public class EirService {
         eir.setContainerSize(dto.getContainerSize());
         eir.setContainerType(dto.getContainerType());
         eir.setCompanyId(dto.getCompanyId());
-        eir.setStatus(Constants.ST_CREATED);
+        eir.setStatus(targetStatus);
         eir.setRemark(dto.getRemark());
+        // 代录即通过：审核留痕必须写全
+        eir.setReviewStatus(Constants.REVIEW_APPROVED);
+        eir.setReviewBy(operator.getUserId());
+        eir.setReviewTime(LocalDateTime.now());
         eirMapper.insert(eir);
+    }
+
+    /**
+     * 客户提交办单申请（COMPANY）：CREATED → SUBMITTED，等待码头管理员审核。
+     * 作业公司强制取登录用户所属公司（前端传值不可信），避免替别家公司申请。
+     */
+    @Transactional
+    public void apply(EirApplyDTO dto, LoginUser operator) {
+        if (operator.getCompanyId() == null) {
+            throw new BusinessException("当前账号未绑定运输公司，不能提交办单申请");
+        }
+        EirDTO business = new EirDTO();
+        business.setBusinessType(dto.getBusinessType());
+        business.setContainerNo(dto.getContainerNo());
+        business.setContainerSize(dto.getContainerSize());
+        business.setContainerType(dto.getContainerType());
+        business.setCompanyId(operator.getCompanyId());
+        validateBusiness(business);
+
+        // 经状态机确认提交动作合法（CREATED → SUBMITTED）
+        String targetStatus = stateMachine.validateAndTransition(Constants.ST_CREATED, EirEvent.SUBMIT);
+
+        EirOrder eir = new EirOrder();
+        eir.setEirNo(generateEirNo(null));
+        eir.setBusinessType(dto.getBusinessType());
+        eir.setContainerNo(dto.getContainerNo());
+        eir.setContainerSize(dto.getContainerSize());
+        eir.setContainerType(dto.getContainerType());
+        eir.setCompanyId(operator.getCompanyId());
+        eir.setStatus(targetStatus);
+        eir.setRemark(dto.getRemark());
+        eir.setApplyBy(operator.getUserId());
+        eir.setApplyTime(LocalDateTime.now());
+        eir.setReviewStatus(Constants.REVIEW_PENDING);
+        eirMapper.insert(eir);
+    }
+
+    /**
+     * 重新提交已驳回的办单申请（COMPANY）：REJECTED → SUBMITTED。
+     * M1 不保留多轮申请历史：覆盖申请人与申请时间，清空上一轮审核信息与驳回原因；
+     * 变更留痕走 @AuditLog 的操作日志。
+     */
+    @Transactional
+    public void resubmit(Long id, LoginUser operator) {
+        EirOrder eir = mustExist(id);
+        checkCompanyOwnership(eir, operator);
+
+        String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.SUBMIT);
+
+        EirOrder update = new EirOrder();
+        update.setId(id);
+        update.setStatus(targetStatus);
+        update.setApplyBy(operator.getUserId());
+        update.setExpectedStatus(eir.getStatus());
+        // updateSubmit 同时清空 review_by / review_time / reject_reason 并刷新 apply_time
+        int rows = eirMapper.updateSubmit(update);
+        if (rows == 0) {
+            throw new BusinessException("单证状态已被其他操作变更，请刷新后重试");
+        }
+    }
+
+    /**
+     * 办单审核通过（ADMIN）：SUBMITTED → APPROVED。
+     */
+    @Transactional
+    public void approve(Long id, LoginUser operator) {
+        EirOrder eir = mustExist(id);
+        String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.APPROVE);
+
+        EirOrder update = new EirOrder();
+        update.setId(id);
+        update.setStatus(targetStatus);
+        update.setTractorId(eir.getTractorId());
+        update.setDriverId(eir.getDriverId());
+        update.setGateInTime(eir.getGateInTime());
+        update.setGateOutTime(eir.getGateOutTime());
+        update.setReviewStatus(Constants.REVIEW_APPROVED);
+        update.setReviewBy(operator.getUserId());
+        update.setReviewTime(LocalDateTime.now());
+        // CAS：仅仍为 SUBMITTED 才生效，防止并发重复审核
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
+    }
+
+    /**
+     * 办单审核驳回（ADMIN）：SUBMITTED → REJECTED。
+     * 驳回必须在同一事务内取消该单证的有效预约并回补时段名额（R1），
+     * 承载「驳回后预约自动失效、名额回补」的验收要求。
+     */
+    @Transactional
+    public void reject(Long id, EirRejectDTO dto, LoginUser operator) {
+        EirOrder eir = mustExist(id);
+
+        String reason = dto.getRejectReason() == null ? "" : dto.getRejectReason().trim();
+        if (reason.isEmpty()) {
+            throw new BusinessException("驳回原因不能为空");
+        }
+        if (reason.length() > 200) {
+            throw new BusinessException("驳回原因不能超过 200 字");
+        }
+
+        String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.REJECT);
+
+        // 同事务：取消有效预约 + 回补 booked_count（条件 UPDATE，禁止先查后改）
+        canceller.releaseActiveAppointment(eir);
+
+        EirOrder update = new EirOrder();
+        update.setId(id);
+        update.setStatus(targetStatus);
+        update.setTractorId(eir.getTractorId());
+        update.setDriverId(eir.getDriverId());
+        update.setGateInTime(eir.getGateInTime());
+        update.setGateOutTime(eir.getGateOutTime());
+        update.setReviewStatus(Constants.REVIEW_REJECTED);
+        update.setReviewBy(operator.getUserId());
+        update.setReviewTime(LocalDateTime.now());
+        update.setRejectReason(reason);
+        // CAS：仅仍为 SUBMITTED 才生效；失败则预约取消与名额回补一并回滚
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
+    }
+
+    /**
+     * 撤销办单审核（ADMIN）：APPROVED / DISPATCHED / APPOINTED → REJECTED。
+     *
+     * 任务书要求「办单审核状态变更时对关联预约的同步约束」。驳回只能发生在 SUBMITTED，
+     * 而 SUBMITTED 阶段还不存在预约；真正会产生级联的是「已通过/已派单/已预约后再撤销」，
+     * 因此这里按状态分层处理：
+     * - APPOINTED：先取消有效预约并回补时段名额（条件 UPDATE，命中一行才归还）；
+     * - DISPATCHED：清空派单司机/拖车，预约前置随派单信息一并失效；
+     * - APPROVED：无预约、无派单，直接置驳回。
+     * 三个状态统一一次 CAS 落到 REJECTED，并写全审核留痕与撤销原因。
+     * 已进闸及之后的状态不允许撤销（不在 M1 范围）。
+     */
+    @Transactional
+    public void revokeReview(Long id, EirRejectDTO dto, LoginUser operator) {
+        EirOrder eir = mustExist(id);
+
+        String reason = dto.getRejectReason() == null ? "" : dto.getRejectReason().trim();
+        if (reason.isEmpty()) {
+            throw new BusinessException("撤销原因不能为空");
+        }
+        if (reason.length() > 200) {
+            throw new BusinessException("撤销原因不能超过 200 字");
+        }
+
+        String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.REVOKE_REVIEW);
+
+        // 已预约的必须先取消预约并回补名额，再清派单信息；其余状态没有有效预约
+        if (Constants.ST_APPOINTED.equals(eir.getStatus())) {
+            canceller.releaseActiveAppointment(eir);
+        }
+
+        EirOrder update = new EirOrder();
+        update.setId(id);
+        update.setStatus(targetStatus);
+        // 撤销审核后不再保留派单信息（updateStatus 会写入 NULL，并在 REJECTED 分支清空 dispatch_time）
+        update.setTractorId(null);
+        update.setDriverId(null);
+        update.setGateInTime(eir.getGateInTime());
+        update.setGateOutTime(eir.getGateOutTime());
+        update.setReviewStatus(Constants.REVIEW_REJECTED);
+        update.setReviewBy(operator.getUserId());
+        update.setReviewTime(LocalDateTime.now());
+        update.setRejectReason(reason);
+        // CAS：仅当前状态与读取时一致才落库；失败则预约取消与名额回补一并回滚
+        EirStatus.casStatus(eirMapper, update, eir.getStatus());
+    }
+
+    /**
+     * 办单审核待办分页（ADMIN）：只返回 SUBMITTED 的单证，按申请时间先来先审。
+     */
+    @Transactional(readOnly = true)
+    public PageResult<EirOrderVO> reviewPage(Integer page, Integer size) {
+        int p = page == null || page < 1 ? 1 : page;
+        int s = size == null || size < 1 ? 10 : size;
+        List<EirOrderVO> rows = eirMapper.selectReviewPage((p - 1) * s, s);
+        return PageResult.of(eirMapper.countReviewPending(), rows);
     }
 
     /**
@@ -141,6 +324,8 @@ public class EirService {
         EirOrder eir = mustExist(id);
         // 只有尚未进入闸口作业的单证才允许修改基础信息
         boolean editable = Constants.ST_CREATED.equals(eir.getStatus())
+                || Constants.ST_APPROVED.equals(eir.getStatus())
+                || Constants.ST_REJECTED.equals(eir.getStatus())
                 || Constants.ST_DISPATCHED.equals(eir.getStatus());
         if (!editable) {
             throw new BusinessException("当前状态不允许修改单证");
@@ -158,10 +343,14 @@ public class EirService {
     /**
      * 作废单证。
      * 仅允许在 CREATED/DISPATCHED/APPOINTED 状态作废（车辆尚未进闸）；
-     * 同时取消有效预约。已作废单证不可重复作废。
+     * 未缴费：取消有效预约并直接作废；
+     * 已缴费：不直接作废，改为生成待审批的退款申请，审批通过后才退款并作废。
+     * 已作废单证不可重复作废。
+     *
+     * @return CANCELLED 已直接作废；REFUND_PENDING 已提交退款申请待审批
      */
     @Transactional
-    public void cancel(Long id, LoginUser operator) {
+    public String cancel(Long id, LoginUser operator) {
         EirOrder eir = mustExist(id);
         checkCompanyOwnership(eir, operator);
 
@@ -172,23 +361,18 @@ public class EirService {
             throw new BusinessException("车辆已进闸作业，单证不能作废");
         }
 
-        // 取消有效预约：CAS 置为已取消成功后归还时段名额（防止与预约取消并发导致名额重复释放）
-        Appointment activeAppt = appointmentMapper.selectActiveByEirId(id);
-        if (activeAppt != null) {
-            int rows = appointmentMapper.updateStatusIf(activeAppt.getId(),
-                    Constants.APPT_CANCELLED, Constants.APPT_ACTIVE);
-            if (rows == 1 && StringUtils.hasText(activeAppt.getTimeSlot())) {
-                slotCapacityMapper.release(activeAppt.getApptDate(), activeAppt.getTimeSlot());
-            }
+        FeeRecord fee = feeMapper.selectByEirId(id);
+        if (fee != null && fee.getPayStatus() != null && fee.getPayStatus() == Constants.PAY_REFUNDED) {
+            throw new BusinessException("该单证费用已退款，请勿重复操作");
+        }
+        if (fee != null && fee.getPayStatus() != null && fee.getPayStatus() == Constants.PAY_PAID) {
+            // 已缴费：先进入退款审批，审批通过前保持原状态
+            refundService.apply(eir, fee, operator);
+            return "REFUND_PENDING";
         }
 
-        EirOrder update = new EirOrder();
-        update.setId(id);
-        update.setStatus(Constants.ST_CANCELLED);
-        update.setTractorId(eir.getTractorId());
-        update.setDriverId(eir.getDriverId());
-        // CAS：仅当前状态与读取时一致才落库，与派单/进闸并发时作废失败并回滚
-        EirStatus.casStatus(eirMapper, update, eir.getStatus());
+        canceller.cancelNow(eir);
+        return "CANCELLED";
     }
 
     /**
@@ -201,6 +385,7 @@ public class EirService {
     public void dispatch(Long id, DispatchDTO dto, LoginUser operator) {
         EirOrder eir = mustExist(id);
         checkCompanyOwnership(eir, operator);
+        ensureReviewPassedForDispatch(eir);
 
         String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.DISPATCH);
 
@@ -308,6 +493,21 @@ public class EirService {
             throw new BusinessException("单证不存在");
         }
         return eir;
+    }
+
+    /**
+     * 派单前置（M1/R2）：办单申请必须审核通过。
+     * 未审核与已驳回分别给出可操作提示（驳回时带上原因），避免客户无从下手。
+     */
+    private void ensureReviewPassedForDispatch(EirOrder eir) {
+        if (Constants.ST_SUBMITTED.equals(eir.getStatus())) {
+            throw new BusinessException("单证办单申请尚未审核通过，暂不能派单");
+        }
+        if (Constants.ST_REJECTED.equals(eir.getStatus())) {
+            String reason = eir.getRejectReason() == null || eir.getRejectReason().isBlank()
+                    ? "未填写原因" : eir.getRejectReason();
+            throw new BusinessException("单证办单申请已被驳回（原因：" + reason + "），请修改后重新提交，暂不能派单");
+        }
     }
 
     /**

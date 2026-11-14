@@ -96,18 +96,26 @@ CREATE TABLE eir_order (
     tractor_id     BIGINT       DEFAULT NULL COMMENT '派单拖车ID',
     driver_id      BIGINT       DEFAULT NULL COMMENT '派单司机ID',
     status         VARCHAR(20)  NOT NULL DEFAULT 'CREATED'
-                   COMMENT '单证状态：CREATED已录入/DISPATCHED已派单/APPOINTED已预约/GATE_IN已进闸/GATE_OUT已出闸/DONE已完成/CANCELLED已作废',
+                   COMMENT '单证状态：CREATED已录入(兼容)/SUBMITTED待审核/APPROVED审核通过/REJECTED已驳回/DISPATCHED已派单/APPOINTED已预约/GATE_IN已进闸/GATE_OUT已出闸/DONE已完成/CANCELLED已作废',
     gate_in_time   DATETIME     DEFAULT NULL COMMENT '进闸时间',
     gate_out_time  DATETIME     DEFAULT NULL COMMENT '出闸时间',
     dispatch_time  DATETIME     DEFAULT NULL COMMENT '派单时间（取消派单时清空）',
     audit_time     DATETIME     DEFAULT NULL COMMENT '审单时间（审单完成时记录）',
     remark         VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    apply_by       BIGINT       DEFAULT NULL COMMENT '办单申请人用户ID（客户提交申请时写入）',
+    apply_time     DATETIME     DEFAULT NULL COMMENT '办单申请时间（重新提交时刷新）',
+    review_status  VARCHAR(20)  NOT NULL DEFAULT 'APPROVED'
+                   COMMENT '办单审核状态：PENDING待审核/APPROVED已通过/REJECTED已驳回（历史数据视为APPROVED）',
+    review_by      BIGINT       DEFAULT NULL COMMENT '办单审核人用户ID',
+    review_time    DATETIME     DEFAULT NULL COMMENT '办单审核时间（与闸口审单时间 audit_time 语义不同）',
+    reject_reason  VARCHAR(200) DEFAULT NULL COMMENT '驳回原因（驳回必填，重新提交时清空）',
     create_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_eir_no (eir_no),
     KEY idx_company (company_id),
     KEY idx_status (status),
+    KEY idx_review_status (review_status),
     KEY idx_tractor (tractor_id),
     KEY idx_driver (driver_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='EIR单证表';
@@ -140,9 +148,11 @@ CREATE TABLE fee_record (
     plate_no    VARCHAR(20)   DEFAULT NULL COMMENT '车牌号',
     company_id  BIGINT        NOT NULL COMMENT '缴费公司ID',
     amount      DECIMAL(10,2) NOT NULL COMMENT '应收金额（固定50元/单，仅GR-F还重单生成）',
-    pay_status  TINYINT       NOT NULL DEFAULT 0 COMMENT '缴费状态：0未缴 1已缴',
+    pay_status  TINYINT       NOT NULL DEFAULT 0 COMMENT '缴费状态：0未缴 1已缴 2已退',
     pay_time    DATETIME      DEFAULT NULL COMMENT '缴费时间',
     operator    VARCHAR(50)   DEFAULT NULL COMMENT '操作人',
+    refund_time DATETIME      DEFAULT NULL COMMENT '退款时间',
+    refund_operator VARCHAR(50) DEFAULT NULL COMMENT '退款操作人',
     create_time DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
@@ -150,6 +160,39 @@ CREATE TABLE fee_record (
     KEY idx_company (company_id),
     KEY idx_pay_status (pay_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='收费记录表';
+
+-- ----------------------------------------------------------------------
+-- 7.1 退款记录表（已缴费单证作废：申请 → ADMIN 审批 → 退款 + 作废）
+--   pending_eir_id / refunded_fee_id 为生成列，仅用于唯一约束：
+--   · 同一单证同时只能有一条 PENDING 申请
+--   · 同一收费记录只能有一条 APPROVED 退款
+-- ----------------------------------------------------------------------
+CREATE TABLE refund_record (
+    id              BIGINT        NOT NULL AUTO_INCREMENT COMMENT '退款记录ID',
+    refund_no       VARCHAR(32)   DEFAULT NULL COMMENT '退款编号（审批通过时生成）',
+    fee_record_id   BIGINT        NOT NULL COMMENT '关联收费记录ID',
+    eir_id          BIGINT        NOT NULL COMMENT '关联单证ID',
+    company_id      BIGINT        NOT NULL COMMENT '缴费公司ID',
+    amount          DECIMAL(10,2) NOT NULL COMMENT '退款金额（按单证整笔退）',
+    status          VARCHAR(20)   NOT NULL DEFAULT 'PENDING' COMMENT '状态：PENDING待审批/APPROVED已退款/REJECTED已驳回',
+    applicant       VARCHAR(50)   NOT NULL COMMENT '申请人',
+    applied_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+    approver        VARCHAR(50)   DEFAULT NULL COMMENT '审批人',
+    approved_at     DATETIME      DEFAULT NULL COMMENT '审批/处理时间',
+    reject_reason   VARCHAR(255)  DEFAULT NULL COMMENT '驳回原因',
+    remark          VARCHAR(255)  DEFAULT NULL COMMENT '备注',
+    create_time     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    pending_eir_id  BIGINT GENERATED ALWAYS AS (IF(status = 'PENDING', eir_id, NULL)) STORED COMMENT '待审批唯一键（非 PENDING 为 NULL）',
+    refunded_fee_id BIGINT GENERATED ALWAYS AS (IF(status = 'APPROVED', fee_record_id, NULL)) STORED COMMENT '已退款唯一键（非 APPROVED 为 NULL）',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_refund_no (refund_no),
+    UNIQUE KEY uk_pending_eir (pending_eir_id),
+    UNIQUE KEY uk_refunded_fee (refunded_fee_id),
+    KEY idx_fee (fee_record_id),
+    KEY idx_eir (eir_id),
+    KEY idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='退款记录表';
 
 -- ----------------------------------------------------------------------
 -- 8. 预约时段容量表（每时段最大预约数，创建预约时 CAS 防超约）
@@ -207,8 +250,12 @@ INSERT INTO driver (id, name, phone, license_no, tractor_id, company_id) VALUES
 (3, '李明', '13800000003', 'LIC00000003', 3, 2);
 
 -- 示例单证：一张已录入状态，方便直接体验派单流程
-INSERT INTO eir_order (id, eir_no, business_type, container_no, container_size, container_type, company_id, remark)
-VALUES (1, 'EIR20261011001', 'GR-F', 'CSNU1000001', 40, 'HQ', 1, '初始化示例单证（还重，需缴费后进闸）');
+INSERT INTO eir_order (id, eir_no, business_type, container_no, container_size, container_type,
+                       company_id, status, review_status, review_time, remark)
+VALUES (1, 'EIR20261011001', 'GR-F', 'CSNU1000001', 40, 'HQ', 1, 'APPROVED', 'APPROVED', NOW(),
+        '初始化示例单证（还重，需缴费后进闸；已审核通过可直接派单）');
 
-INSERT INTO eir_order (id, eir_no, business_type, container_no, container_size, container_type, company_id, remark)
-VALUES (2, 'EIR20261011002', 'PI-E', 'CSNU1000002', 20, 'GP', 2, '初始化示例单证（提空，无需缴费）');
+INSERT INTO eir_order (id, eir_no, business_type, container_no, container_size, container_type,
+                       company_id, status, review_status, review_time, remark)
+VALUES (2, 'EIR20261011002', 'PI-E', 'CSNU1000002', 20, 'GP', 2, 'APPROVED', 'APPROVED', NOW(),
+        '初始化示例单证（提空，无需缴费；已审核通过可直接派单）');

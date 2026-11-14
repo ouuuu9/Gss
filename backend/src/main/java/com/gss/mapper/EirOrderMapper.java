@@ -65,4 +65,16 @@ public interface EirOrderMapper {
 
     /** 最近闸口办单台账：按最新闸口动作（进闸/出闸/审单）时间倒序取前 limit 条 */
     List<EirOrderVO> selectRecentGateOps(@Param("limit") int limit);
+
+    /** 办单审核待办列表（M1 审核页）：只取状态为 SUBMITTED 的单证，按申请时间先来先审 */
+    List<EirOrderVO> selectReviewPage(@Param("offset") int offset, @Param("size") int size);
+
+    /** 办单审核待办总数 */
+    Long countReviewPending();
+
+    /**
+     * 提交 / 重新提交办单申请：写入申请人、刷新申请时间，并清空上一轮审核信息。
+     * 通过 expectedStatus 做 CAS，防止并发重复提交。
+     */
+    int updateSubmit(EirOrder eirOrder);
 }

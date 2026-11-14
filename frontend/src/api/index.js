@@ -53,6 +53,13 @@ export const eirApi = {
   create: (data) => request.post('/api/eir', data),
   update: (id, data) => request.put(`/api/eir/${id}`, data),
   cancel: (id) => request.post(`/api/eir/${id}/cancel`),
+  // 办单申请与审核（M1）
+  apply: (data) => request.post('/api/eir/apply', data),
+  resubmit: (id) => request.post(`/api/eir/${id}/resubmit`),
+  reviewPending: (params) => request.get('/api/eir/review-pending', { params }),
+  approve: (id) => request.post(`/api/eir/${id}/approve`),
+  reject: (id, rejectReason) => request.post(`/api/eir/${id}/reject`, { rejectReason }),
+  revokeReview: (id, rejectReason) => request.post(`/api/eir/${id}/revoke-review`, { rejectReason }),
   dispatch: (id, data) => request.post(`/api/eir/${id}/dispatch`, data),
   batchDispatch: (data) => request.post('/api/eir/batch-dispatch', data),
   cancelDispatch: (id) => request.post(`/api/eir/${id}/cancel-dispatch`),
@@ -89,6 +96,13 @@ export const feeApi = {
   batchPay: (ids) => request.post('/api/fees/batch-pay', { ids }),
   report: (params) => request.get('/api/fees/report', { params }),
   export: (params) => request.get('/api/fees/export', { params, responseType: 'blob' })
+}
+
+/* ==================== 退款 ==================== */
+export const refundApi = {
+  page: (params) => request.get('/api/refunds', { params }),
+  approve: (id) => request.post(`/api/refunds/${id}/approve`),
+  reject: (id, reason) => request.post(`/api/refunds/${id}/reject`, { reason })
 }
 
 /* ==================== 看板 ==================== */

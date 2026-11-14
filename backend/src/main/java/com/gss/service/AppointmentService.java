@@ -71,6 +71,18 @@ public class AppointmentService {
         if (Constants.ST_CANCELLED.equals(eir.getStatus())) {
             throw new BusinessException("单证已作废，不能预约");
         }
+        // 预约前置（M1/R2）：必须先通过办单审核且完成派单；三种原因分别给文案，便于客户自助定位
+        if (Constants.ST_SUBMITTED.equals(eir.getStatus())) {
+            throw new BusinessException("办单申请尚未审核，暂不能预约");
+        }
+        if (Constants.ST_REJECTED.equals(eir.getStatus())) {
+            String reason = eir.getRejectReason() == null || eir.getRejectReason().isBlank()
+                    ? "未填写原因" : eir.getRejectReason();
+            throw new BusinessException("办单申请已被驳回（原因：" + reason + "），暂不能预约");
+        }
+        if (Constants.ST_APPROVED.equals(eir.getStatus())) {
+            throw new BusinessException("单证尚未派单，暂不能预约");
+        }
         String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.APPOINT);
 
         // 时段合法性校验（8个两小时时段）

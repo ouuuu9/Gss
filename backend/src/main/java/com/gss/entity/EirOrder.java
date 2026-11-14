@@ -49,6 +49,24 @@ public class EirOrder {
     /** 备注 */
     private String remark;
 
+    /** 办单申请人用户ID（客户提交办单申请时写入） */
+    private Long applyBy;
+
+    /** 办单申请时间（重新提交时覆盖为本次提交时间） */
+    private LocalDateTime applyTime;
+
+    /** 办单审核状态：PENDING待审核 / APPROVED已通过 / REJECTED已驳回 */
+    private String reviewStatus;
+
+    /** 办单审核人用户ID */
+    private Long reviewBy;
+
+    /** 办单审核时间 */
+    private LocalDateTime reviewTime;
+
+    /** 驳回原因（驳回必填 1-200 字，重新提交时清空） */
+    private String rejectReason;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 

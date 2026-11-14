@@ -19,10 +19,16 @@ public class FeeReportVO {
     private Integer totalCount;
     /** 已缴费笔数 */
     private Integer paidCount;
+    /** 已退款笔数 */
+    private Integer refundedCount;
     /** 未缴费笔数 */
     private Integer unpaidCount;
-    /** 已缴费总金额 */
+    /** 已缴费总金额（含已退款） */
     private BigDecimal paidAmount;
+    /** 已退款金额 */
+    private BigDecimal refundAmount;
+    /** 实收金额 = 已缴 − 已退 */
+    private BigDecimal actualAmount;
     /** 应收总金额 */
     private BigDecimal totalAmount;
 }
