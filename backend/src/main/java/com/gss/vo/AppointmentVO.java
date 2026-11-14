@@ -24,6 +24,10 @@ public class AppointmentVO {
     /** 预约时段（如 08:00-10:00） */
     private String timeSlot;
     private String status;
+    /** 预约车道ID / 闸口号 / 车道号 */
+    private Long laneId;
+    private String gateNo;
+    private String laneNo;
     /** 预约凭证号 */
     private String voucherNo;
     /** 核验时间 */

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.GateLaneMapper">
+
+    <select id="selectAll" resultType="com.gss.entity.GateLane">
+        SELECT * FROM gate_lane ORDER BY gate_no, lane_no
+    </select>
+
+    <select id="selectById" resultType="com.gss.entity.GateLane">
+        SELECT * FROM gate_lane WHERE id = #{id}
+    </select>
+
+    <select id="selectByLaneNo" resultType="com.gss.entity.GateLane">
+        SELECT * FROM gate_lane WHERE lane_no = #{laneNo} LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="com.gss.entity.GateLane" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO gate_lane (gate_no, lane_no, capacity_per_slot, status, remark)
+        VALUES (#{gateNo}, #{laneNo}, #{capacityPerSlot}, #{status}, #{remark})
+    </insert>
+
+    <update id="update" parameterType="com.gss.entity.GateLane">
+        UPDATE gate_lane
+        <set>
+            <if test="gateNo != null">gate_no = #{gateNo},</if>
+            <if test="laneNo != null">lane_no = #{laneNo},</if>
+            <if test="capacityPerSlot != null">capacity_per_slot = #{capacityPerSlot},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE gate_lane SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <select id="countOpenAppointments" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM appointment
+        WHERE lane_id = #{laneId} AND status IN ('ACTIVE', 'VERIFIED')
+    </select>
+
+    <!-- 车道×时段矩阵：一条 SQL 把「车道 × 8 个时段」补齐，未配置的格子按车道默认容量 -->
+    <select id="selectCapacityMatrix" resultType="com.gss.vo.LaneCapacityCellVO">
+        SELECT l.id AS laneId, l.gate_no AS gateNo, l.lane_no AS laneNo,
+               s.time_slot AS timeSlot,
+               IFNULL(c.capacity, l.capacity_per_slot) AS capacity,
+               IFNULL(c.booked_count, 0) AS bookedCount,
+               GREATEST(IFNULL(c.capacity, l.capacity_per_slot) - IFNULL(c.booked_count, 0), 0) AS remain
+        FROM gate_lane l
+        CROSS JOIN (
+            SELECT '06:00-08:00' AS time_slot UNION ALL SELECT '08:00-10:00' UNION ALL
+            SELECT '10:00-12:00' UNION ALL SELECT '12:00-14:00' UNION ALL
+            SELECT '14:00-16:00' UNION ALL SELECT '16:00-18:00' UNION ALL
+            SELECT '18:00-20:00' UNION ALL SELECT '20:00-22:00'
+        ) s
+        LEFT JOIN appt_slot_capacity c
+               ON c.lane_id = l.id AND c.appt_date = #{date} AND c.time_slot = s.time_slot
+        WHERE l.status = 'ENABLED'
+        ORDER BY l.gate_no, l.lane_no, s.time_slot
+    </select>
+
+</mapper>

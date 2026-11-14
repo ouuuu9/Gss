@@ -29,6 +29,9 @@ public class Appointment {
     /** 状态：ACTIVE有效/VERIFIED已核验/RELEASED已放行/CANCELLED已取消/NO_SHOW失约 */
     private String status;
 
+    /** 预约车道ID（M3：预约必须落到具体车道） */
+    private Long laneId;
+
     /** 预约凭证号（服务端生成，格式 APT + yyyyMMdd + 6 位当日序列） */
     private String voucherNo;
 

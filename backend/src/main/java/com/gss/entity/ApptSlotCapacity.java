@@ -13,6 +13,9 @@ public class ApptSlotCapacity {
     /** 容量ID */
     private Long id;
 
+    /** 闸口车道ID（M3：容量按车道隔离） */
+    private Long laneId;
+
     /** 预约日期 */
     private LocalDate apptDate;
 

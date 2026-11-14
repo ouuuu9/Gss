@@ -10,6 +10,7 @@
     <select id="selectPage" resultType="com.gss.vo.AppointmentVO">
         SELECT a.id, a.eir_id, a.plate_no, a.appt_date, a.time_slot, a.status, a.driver_id, a.create_time,
                a.voucher_no AS voucherNo, a.verify_time AS verifyTime, a.release_time AS releaseTime,
+               a.lane_id AS laneId, l.gate_no AS gateNo, l.lane_no AS laneNo,
                e.eir_no AS eirNo, e.business_type AS businessType, e.container_no AS containerNo,
                e.company_id AS companyId, c.name AS companyName,
                d.name AS driverName
@@ -17,6 +18,7 @@
         LEFT JOIN eir_order e ON e.id = a.eir_id
         LEFT JOIN transport_company c ON c.id = e.company_id
         LEFT JOIN driver d ON d.id = a.driver_id
+        LEFT JOIN gate_lane l ON l.id = a.lane_id
         <where>
             <if test="eirNo != null and eirNo != ''">
                 AND e.eir_no LIKE CONCAT('%', #{eirNo}, '%')
@@ -76,8 +78,8 @@
     </select>
 
     <insert id="insert" parameterType="com.gss.entity.Appointment" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO appointment (eir_id, plate_no, appt_date, time_slot, status, driver_id, voucher_no)
-        VALUES (#{eirId}, #{plateNo}, #{apptDate}, #{timeSlot}, #{status}, #{driverId}, #{voucherNo})
+        INSERT INTO appointment (eir_id, plate_no, appt_date, time_slot, status, driver_id, voucher_no, lane_id)
+        VALUES (#{eirId}, #{plateNo}, #{apptDate}, #{timeSlot}, #{status}, #{driverId}, #{voucherNo}, #{laneId})
     </insert>
 
     <update id="updateStatus">

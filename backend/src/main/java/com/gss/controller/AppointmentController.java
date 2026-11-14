@@ -12,6 +12,7 @@ import com.gss.security.RequireRole;
 import com.gss.security.UserContext;
 import com.gss.service.AppointmentService;
 import com.gss.vo.AppointmentVO;
+import com.gss.vo.LaneCapacityCellVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -130,7 +132,7 @@ public class AppointmentController {
      */
     @GetMapping("/slots")
     @Operation(summary = "查询某日期各时段剩余容量")
-    public Result<List<Map<String, Object>>> slots(@RequestParam String date) {
+    public Result<List<LaneCapacityCellVO>> slots(@RequestParam LocalDate date) {
         return Result.success(appointmentService.slotCapacity(date));
     }
 }

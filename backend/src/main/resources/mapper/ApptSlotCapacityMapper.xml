@@ -4,8 +4,8 @@
 <mapper namespace="com.gss.mapper.ApptSlotCapacityMapper">
 
     <insert id="insertIgnore">
-        INSERT IGNORE INTO appt_slot_capacity (appt_date, time_slot, capacity, booked_count)
-        VALUES (#{apptDate}, #{timeSlot}, #{capacity}, 0)
+        INSERT IGNORE INTO appt_slot_capacity (lane_id, appt_date, time_slot, capacity, booked_count)
+        VALUES (#{laneId}, #{apptDate}, #{timeSlot}, #{capacity}, 0)
     </insert>
 
     <!-- 原子防超约核心：单条条件 UPDATE 同时完成"校验剩余 + 扣减名额"，
@@ -13,7 +13,8 @@
     <update id="tryBook">
         UPDATE appt_slot_capacity
         SET booked_count = booked_count + 1
-        WHERE appt_date = #{apptDate}
+        WHERE lane_id = #{laneId}
+          AND appt_date = #{apptDate}
           AND time_slot = #{timeSlot}
           AND booked_count &lt; capacity
     </update>
@@ -21,9 +22,26 @@
     <update id="release">
         UPDATE appt_slot_capacity
         SET booked_count = GREATEST(booked_count - 1, 0)
-        WHERE appt_date = #{apptDate}
+        WHERE lane_id = #{laneId}
+          AND appt_date = #{apptDate}
           AND time_slot = #{timeSlot}
     </update>
+
+    <select id="selectBookedCount" resultType="java.lang.Integer">
+        SELECT booked_count FROM appt_slot_capacity
+        WHERE lane_id = #{laneId} AND appt_date = #{apptDate} AND time_slot = #{timeSlot}
+        LIMIT 1
+    </select>
+
+    <!-- 批量生成/调整：唯一键 (lane_id, appt_date, time_slot) 命中则改容量 -->
+    <insert id="batchUpsert">
+        INSERT INTO appt_slot_capacity (lane_id, appt_date, time_slot, capacity, booked_count)
+        VALUES
+        <foreach collection="items" item="cell" separator=",">
+            (#{cell.laneId}, #{apptDate}, #{cell.timeSlot}, #{cell.capacity}, 0)
+        </foreach>
+        ON DUPLICATE KEY UPDATE capacity = VALUES(capacity)
+    </insert>
 
     <!-- 未初始化的时段按默认容量返回，保证弹窗始终展示全部时段；
          时段与默认容量由 Constants 传入，单一数据源，改配置不用动 SQL -->
@@ -36,7 +54,7 @@
             </foreach>
         ) t
         LEFT JOIN appt_slot_capacity s
-               ON s.appt_date = #{date} AND s.time_slot = t.time_slot
+               ON s.lane_id = #{laneId} AND s.appt_date = #{date} AND s.time_slot = t.time_slot
         ORDER BY t.time_slot
     </select>
 

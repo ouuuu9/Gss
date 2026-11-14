@@ -7,6 +7,7 @@ import com.gss.entity.EirOrder;
 import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.EirOrderMapper;
+import com.gss.mapper.GateLaneMapper;
 import com.gss.mapper.TractorMapper;
 import com.gss.security.LoginUser;
 import com.gss.statemachine.AppointmentStateMachine;
@@ -35,13 +36,14 @@ class AppointmentEligibilityTest {
     @Mock private ApptSlotCapacityMapper slotCapacityMapper;
     @Mock private EirOrderMapper eirMapper;
     @Mock private TractorMapper tractorMapper;
+    @Mock private GateLaneMapper laneMapper;
 
     private AppointmentService service;
 
     @BeforeEach
     void setUp() {
         service = new AppointmentService(appointmentMapper, slotCapacityMapper, eirMapper,
-                tractorMapper, new EirStateMachine(), new AppointmentStateMachine());
+                tractorMapper, laneMapper, new EirStateMachine(), new AppointmentStateMachine());
     }
 
     private LoginUser companyUser() {

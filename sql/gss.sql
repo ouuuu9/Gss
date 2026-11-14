@@ -132,6 +132,7 @@ CREATE TABLE appointment (
     status      VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
                 COMMENT '状态：ACTIVE有效/VERIFIED已核验/RELEASED已放行/CANCELLED已取消/NO_SHOW失约',
     driver_id   BIGINT      NOT NULL COMMENT '司机ID',
+    lane_id     BIGINT      NOT NULL COMMENT '预约车道ID（M3）',
     voucher_no  VARCHAR(24) DEFAULT NULL COMMENT '预约凭证号（APT+yyyyMMdd+6位当日序列，唯一）',
     verify_time DATETIME    DEFAULT NULL COMMENT '闸口核验时间（为空表示未核验，失约判定依赖它）',
     release_time DATETIME   DEFAULT NULL COMMENT '放行时间（出闸释放时写入）',
@@ -202,15 +203,31 @@ CREATE TABLE refund_record (
 -- ----------------------------------------------------------------------
 -- 8. 预约时段容量表（每时段最大预约数，创建预约时 CAS 防超约）
 -- ----------------------------------------------------------------------
+-- M3：车道表（容量按车道隔离）
+CREATE TABLE gate_lane (
+    id                BIGINT      NOT NULL AUTO_INCREMENT COMMENT '车道ID',
+    gate_no           VARCHAR(20) NOT NULL COMMENT '闸口号，如 GATE-1',
+    lane_no           VARCHAR(20) NOT NULL COMMENT '车道号，如 LANE-1',
+    capacity_per_slot INT         NOT NULL DEFAULT 10 COMMENT '单时段默认容量',
+    status            VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT '状态：ENABLED启用/DISABLED停用',
+    remark            VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    create_time       DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time       DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_gate_lane (gate_no, lane_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='闸口车道表';
+
 CREATE TABLE appt_slot_capacity (
     id           BIGINT      NOT NULL AUTO_INCREMENT COMMENT '容量ID',
+    lane_id      BIGINT      NOT NULL COMMENT '闸口车道ID（M3：容量按车道隔离）',
     appt_date    DATE        NOT NULL COMMENT '预约日期',
     time_slot    VARCHAR(20) NOT NULL COMMENT '预约时段（如 08:00-10:00）',
-    capacity     INT         NOT NULL DEFAULT 10 COMMENT '时段最大预约数',
+    capacity     INT         NOT NULL DEFAULT 10 COMMENT '该车道该时段最大预约数',
     booked_count INT         NOT NULL DEFAULT 0 COMMENT '已预约数',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_date_slot (appt_date, time_slot)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预约时段容量表';
+    UNIQUE KEY uk_lane_date_slot (lane_id, appt_date, time_slot),
+    KEY idx_date_slot (appt_date, time_slot)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预约时段容量表（按车道）';
 
 -- ----------------------------------------------------------------------
 -- 8.1 闸口核验留痕表（M2：每次核验尝试都落一条，PASS/FAIL 均留痕）
@@ -272,6 +289,10 @@ INSERT INTO driver (id, name, phone, license_no, tractor_id, company_id) VALUES
 (1, '张伟', '13800000001', 'LIC00000001', 1, 1),
 (2, '陈强', '13800000002', 'LIC00000002', 2, 1),
 (3, '李明', '13800000003', 'LIC00000003', 3, 2);
+
+-- 闸口车道（M3：默认一条，历史容量与预约都挂到这条）
+INSERT INTO gate_lane (id, gate_no, lane_no, capacity_per_slot, status, remark)
+VALUES (1, 'GATE-1', 'LANE-1', 10, 'ENABLED', '默认车道（M3 迁移基线）');
 
 -- 示例单证：一张已录入状态，方便直接体验派单流程
 INSERT INTO eir_order (id, eir_no, business_type, container_no, container_size, container_type,

@@ -37,6 +37,8 @@ class BookingConcurrencyTest {
 
     private static final LocalDate TEST_DATE = LocalDate.now().plusDays(7);
     private static final String TEST_SLOT = "08:00-10:00";
+    /** M3：容量按车道隔离，这里固定用迁移生成的默认车道 */
+    private static final long TEST_LANE_ID = 1L;
     private static final int CAPACITY = 20;          // 时段容量
     private static final int THREADS = 100;          // 并发线程数（远超容量以暴露超约）
     private static final int REPEAT = 5;             // 每组重复轮数，取平均
@@ -81,9 +83,9 @@ class BookingConcurrencyTest {
      * @return [成功预约数, 实际占用名额]
      */
     private long[] runGroup(boolean atomic) throws InterruptedException {
-        slotCapacityMapper.insertIgnore(TEST_DATE, TEST_SLOT, CAPACITY);
+        slotCapacityMapper.insertIgnore(TEST_LANE_ID, TEST_DATE, TEST_SLOT, CAPACITY);
         for (int i = 0; i < CAPACITY + THREADS; i++) {
-            if (slotCapacityMapper.release(TEST_DATE, TEST_SLOT) == 0) break;
+            if (slotCapacityMapper.release(TEST_LANE_ID, TEST_DATE, TEST_SLOT) == 0) break;
         }
 
         CountDownLatch startGate = new CountDownLatch(1);
@@ -96,7 +98,7 @@ class BookingConcurrencyTest {
             Thread t = new Thread(() -> {
                 try {
                     startGate.await();
-                    int booked = atomic ? slotCapacityMapper.tryBook(TEST_DATE, TEST_SLOT) : naiveBook();
+                    int booked = atomic ? slotCapacityMapper.tryBook(TEST_LANE_ID, TEST_DATE, TEST_SLOT) : naiveBook();
                     if (booked > 0) {
                         success.incrementAndGet();
                         occupied.incrementAndGet();
@@ -123,15 +125,15 @@ class BookingConcurrencyTest {
      */
     private int naiveBook() {
         Integer current = jdbcTemplate.queryForObject(
-                "SELECT booked_count FROM appt_slot_capacity WHERE appt_date=? AND time_slot=?",
-                Integer.class, TEST_DATE, TEST_SLOT);
+                "SELECT booked_count FROM appt_slot_capacity WHERE lane_id=? AND appt_date=? AND time_slot=?",
+                Integer.class, TEST_LANE_ID, TEST_DATE, TEST_SLOT);
         if (current == null) {
             return 0;
         }
         if (current < CAPACITY) {
             jdbcTemplate.update(
-                    "UPDATE appt_slot_capacity SET booked_count = booked_count + 1 WHERE appt_date=? AND time_slot=?",
-                    TEST_DATE, TEST_SLOT);
+                    "UPDATE appt_slot_capacity SET booked_count = booked_count + 1 WHERE lane_id=? AND appt_date=? AND time_slot=?",
+                    TEST_LANE_ID, TEST_DATE, TEST_SLOT);
             return 1;
         }
         return 0;

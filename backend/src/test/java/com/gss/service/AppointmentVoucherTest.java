@@ -4,10 +4,12 @@ import com.gss.common.Constants;
 import com.gss.dto.AppointmentDTO;
 import com.gss.entity.Appointment;
 import com.gss.entity.EirOrder;
+import com.gss.entity.GateLane;
 import com.gss.entity.Tractor;
 import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.EirOrderMapper;
+import com.gss.mapper.GateLaneMapper;
 import com.gss.mapper.TractorMapper;
 import com.gss.security.LoginUser;
 import com.gss.statemachine.AppointmentStateMachine;
@@ -41,6 +43,7 @@ class AppointmentVoucherTest {
     @Mock private ApptSlotCapacityMapper slotCapacityMapper;
     @Mock private EirOrderMapper eirMapper;
     @Mock private TractorMapper tractorMapper;
+    @Mock private GateLaneMapper laneMapper;
 
     private AppointmentService service;
 
@@ -51,7 +54,7 @@ class AppointmentVoucherTest {
     @BeforeEach
     void setUp() {
         service = new AppointmentService(appointmentMapper, slotCapacityMapper, eirMapper,
-                tractorMapper, new EirStateMachine(), new AppointmentStateMachine());
+                tractorMapper, laneMapper, new EirStateMachine(), new AppointmentStateMachine());
     }
 
     private LoginUser driverUser() {
@@ -64,7 +67,18 @@ class AppointmentVoucherTest {
         d.setApptDate(APPT_DATE);
         d.setTimeSlot("08:00-10:00");
         d.setPlateNo("粤A10001");
+        d.setLaneId(1L);
         return d;
+    }
+
+    private GateLane enabledLane() {
+        GateLane lane = new GateLane();
+        lane.setId(1L);
+        lane.setGateNo("GATE-1");
+        lane.setLaneNo("LANE-1");
+        lane.setCapacityPerSlot(10);
+        lane.setStatus(Constants.LANE_ENABLED);
+        return lane;
     }
 
     private EirOrder eir() {
@@ -81,7 +95,8 @@ class AppointmentVoucherTest {
     void voucherFollowsDailySequence() {
         when(eirMapper.selectById(10L)).thenReturn(eir());
         when(appointmentMapper.selectMaxVoucherSeq(anyString())).thenReturn(41);
-        when(slotCapacityMapper.tryBook(APPT_DATE, "08:00-10:00")).thenReturn(1);
+        when(laneMapper.selectById(1L)).thenReturn(enabledLane());
+        when(slotCapacityMapper.tryBook(1L, APPT_DATE, "08:00-10:00")).thenReturn(1);
         when(eirMapper.updateStatus(any())).thenReturn(1);
 
         service.create(dto(), driverUser());
@@ -99,7 +114,8 @@ class AppointmentVoucherTest {
         when(eirMapper.selectById(10L)).thenReturn(eir());
         // 第一次取到 41，撞号后重新取到 42
         when(appointmentMapper.selectMaxVoucherSeq(anyString())).thenReturn(41, 42);
-        when(slotCapacityMapper.tryBook(APPT_DATE, "08:00-10:00")).thenReturn(1);
+        when(laneMapper.selectById(1L)).thenReturn(enabledLane());
+        when(slotCapacityMapper.tryBook(1L, APPT_DATE, "08:00-10:00")).thenReturn(1);
         when(appointmentMapper.insert(any()))
                 .thenThrow(new DuplicateKeyException("uk_voucher_no"))
                 .thenReturn(1);

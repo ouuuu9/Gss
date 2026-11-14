@@ -9,12 +9,14 @@ import com.gss.entity.Appointment;
 import com.gss.entity.EirOrder;
 import com.gss.entity.FeeRecord;
 import com.gss.entity.GateCheckLog;
+import com.gss.entity.GateLane;
 import com.gss.entity.Tractor;
 import com.gss.security.LoginUser;
 import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.FeeRecordMapper;
 import com.gss.mapper.GateCheckLogMapper;
+import com.gss.mapper.GateLaneMapper;
 import com.gss.mapper.TractorMapper;
 import com.gss.statemachine.AppointmentEvent;
 import com.gss.statemachine.AppointmentStateMachine;
@@ -48,6 +50,7 @@ public class GateService {
     private final EirStateMachine stateMachine;
     private final AppointmentStateMachine apptStateMachine;
     private final GateCheckLogMapper checkLogMapper;
+    private final GateLaneMapper laneMapper;
 
     /** 时钟：默认系统时区；单测可注入固定时钟，验证早到/晚到窗口 */
     private Clock clock = Clock.systemDefaultZone();
@@ -250,6 +253,15 @@ public class GateService {
         if (now.isAfter(windowEnd)) {
             return fail(Constants.ABNORMAL_LATE, "晚到：已超出预约时段窗口（" + appt.getTimeSlot() + "）",
                     effectiveVoucher, eir.getId(), appt.getId(), icCard, laneCode, operator, multiRemark);
+        }
+
+        // f0. 车道一致性（M3）：传了 laneCode 就必须与预约车道一致；不传则跳过（兼容旧调用）
+        if (!laneCode.isEmpty()) {
+            GateLane lane = laneMapper.selectByLaneNo(laneCode);
+            if (lane == null || !lane.getId().equals(appt.getLaneId())) {
+                return fail(Constants.ABNORMAL_DOC_MISMATCH, "车道与预约车道不匹配，禁止进闸",
+                        effectiveVoucher, eir.getId(), appt.getId(), icCard, laneCode, operator, multiRemark);
+            }
         }
 
         // f. 车辆与单证派单车辆一致性（按 IC 卡核验时才有意义）

@@ -76,6 +76,16 @@ export const apptApi = {
   export: (params) => request.get('/api/appointments/export', { params, responseType: 'blob' })
 }
 
+/* ==================== 闸口车道与配额（M3） ==================== */
+export const laneApi = {
+  list: () => request.get('/api/lanes'),
+  create: (data) => request.post('/api/lanes', data),
+  update: (id, data) => request.put(`/api/lanes/${id}`, data),
+  toggle: (id, enabled) => request.post(`/api/lanes/${id}/toggle`, null, { params: { enabled } }),
+  capacity: (params) => request.get('/api/lanes/capacity', { params }),
+  batchCapacity: (data) => request.post('/api/lanes/capacity/batch', data)
+}
+
 /* ==================== 操作审计日志 ==================== */
 export const auditApi = {
   page: (params) => request.get('/api/audit-logs', { params })

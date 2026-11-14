@@ -33,6 +33,14 @@
           @change="loadSlots"
         />
       </el-form-item>
+      <el-form-item label="预约车道" prop="laneId">
+        <el-select v-model="form.laneId" placeholder="请先选择预约日期" style="width: 100%" @change="onLaneChange">
+          <el-option
+            v-for="l in laneOptions" :key="l.laneId"
+            :label="`${l.gateNo} / ${l.laneNo}`" :value="l.laneId"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="预约时段" prop="timeSlot">
         <el-select v-model="form.timeSlot" placeholder="请先选择预约日期" style="width: 100%">
           <el-option
@@ -69,13 +77,15 @@ const emit = defineEmits(['update:visible', 'success'])
 const formRef = ref()
 const submitting = ref(false)
 const slotOptions = ref([])
-const defaultForm = () => ({ eirId: null, plateNo: '', apptDate: '', timeSlot: '' })
+const laneOptions = ref([])
+const defaultForm = () => ({ eirId: null, plateNo: '', apptDate: '', laneId: null, timeSlot: '' })
 const form = reactive(defaultForm())
 
 const rules = {
   eirId: [{ required: true, message: '请选择单证', trigger: 'change' }],
   plateNo: [{ required: true, message: '车牌号不能为空', trigger: 'blur' }],
   apptDate: [{ required: true, message: '请选择预约日期', trigger: 'change' }],
+  laneId: [{ required: true, message: '请选择预约车道', trigger: 'change' }],
   timeSlot: [{ required: true, message: '请选择预约时段', trigger: 'change' }]
 }
 
@@ -83,6 +93,7 @@ const rules = {
 function onOpen() {
   Object.assign(form, defaultForm())
   slotOptions.value = []
+  laneOptions.value = []
   if (props.fixedEir) {
     form.eirId = props.fixedEir.id
     form.plateNo = props.fixedEir.plateNo || ''
@@ -96,12 +107,35 @@ function onEirChange(eirId) {
   }
 }
 
+// M3：日期变更后拉「车道 × 时段」矩阵，先选车道再选时段
 async function loadSlots() {
   slotOptions.value = []
+  laneOptions.value = []
+  form.laneId = null
   form.timeSlot = ''
   if (!form.apptDate) return
-  slotOptions.value = await apptApi.slots({ date: form.apptDate })
+  const cells = await apptApi.slots({ date: form.apptDate })
+  const seen = new Map()
+  for (const c of cells) {
+    if (!seen.has(c.laneId)) {
+      seen.set(c.laneId, { laneId: c.laneId, gateNo: c.gateNo, laneNo: c.laneNo })
+    }
+  }
+  laneOptions.value = Array.from(seen.values())
+  if (laneOptions.value.length > 0) {
+    form.laneId = laneOptions.value[0].laneId
+  }
+  allCells.value = cells
+  onLaneChange(form.laneId)
 }
+
+// 选中车道后，只展示该车道的时段余量
+function onLaneChange(laneId) {
+  form.timeSlot = ''
+  slotOptions.value = allCells.value.filter((c) => c.laneId === laneId)
+}
+
+const allCells = ref([])
 
 function disablePast(date) {
   const today = new Date()
@@ -141,6 +175,7 @@ async function submit() {
       eirId: form.eirId,
       plateNo: form.plateNo,
       apptDate: form.apptDate,
+      laneId: form.laneId,
       timeSlot: form.timeSlot
     })
     ElMessage.success('预约成功')

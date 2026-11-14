@@ -43,6 +43,18 @@ const routes = [
         meta: { title: '办单审核', icon: 'DocumentChecked', roles: ['ADMIN'], group: '作业中心' }
       },
       {
+        path: 'lanes',
+        name: 'Lane',
+        component: () => import('@/views/Lane.vue'),
+        meta: { title: '车道管理', icon: 'Guide', roles: ['ADMIN', 'GATE'], group: '作业中心' }
+      },
+      {
+        path: 'lane-capacity',
+        name: 'LaneCapacity',
+        component: () => import('@/views/LaneCapacity.vue'),
+        meta: { title: '配额配置', icon: 'Grid', roles: ['ADMIN'], group: '作业中心' }
+      },
+      {
         path: 'appointments',
         name: 'Appointment',
         component: () => import('@/views/Appointment.vue'),

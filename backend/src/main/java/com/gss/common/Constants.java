@@ -52,6 +52,10 @@ public final class Constants {
     /** 旧状态，仅用于历史数据识别（迁移时统一改为 NO_SHOW） */
     public static final String APPT_EXPIRED = "EXPIRED";
 
+    /* ==================== 闸口车道（M3） ==================== */
+    public static final String LANE_ENABLED = "ENABLED";
+    public static final String LANE_DISABLED = "DISABLED";
+
     /* ==================== 闸口核验 ==================== */
     /** 核验窗口：时段开始前/结束后各允许 30 分钟 */
     public static final int VERIFY_WINDOW_MINUTES = 30;

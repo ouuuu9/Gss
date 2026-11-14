@@ -11,6 +11,7 @@ import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.FeeRecordMapper;
 import com.gss.mapper.GateCheckLogMapper;
+import com.gss.mapper.GateLaneMapper;
 import com.gss.mapper.TractorMapper;
 import com.gss.security.LoginUser;
 import com.gss.statemachine.AppointmentStateMachine;
@@ -49,6 +50,7 @@ class GateVerifyServiceTest {
     @Mock private AppointmentMapper appointmentMapper;
     @Mock private FeeRecordMapper feeMapper;
     @Mock private GateCheckLogMapper checkLogMapper;
+    @Mock private GateLaneMapper laneMapper;
 
     private GateService service;
 
@@ -59,7 +61,7 @@ class GateVerifyServiceTest {
     @BeforeEach
     void setUp() {
         service = new GateService(tractorMapper, eirMapper, appointmentMapper, feeMapper,
-                new EirStateMachine(), new AppointmentStateMachine(), checkLogMapper);
+                new EirStateMachine(), new AppointmentStateMachine(), checkLogMapper, laneMapper);
         service.setClock(Clock.fixed(FIXED_NOW.atZone(ZONE).toInstant(), ZONE));
     }
 

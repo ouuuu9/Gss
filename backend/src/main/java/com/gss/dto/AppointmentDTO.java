@@ -18,6 +18,10 @@ public class AppointmentDTO {
     /** 车牌号（可由系统按拖车自动带出） */
     private String plateNo;
 
+    /** 预约车道（M3 必填） */
+    @NotNull(message = "预约车道不能为空")
+    private Long laneId;
+
     @NotNull(message = "预约日期不能为空")
     private LocalDate apptDate;
 

@@ -7,10 +7,12 @@ import com.gss.common.PageResult;
 import com.gss.dto.AppointmentDTO;
 import com.gss.entity.Appointment;
 import com.gss.entity.EirOrder;
+import com.gss.entity.GateLane;
 import com.gss.entity.Tractor;
 import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.EirOrderMapper;
+import com.gss.mapper.GateLaneMapper;
 import com.gss.mapper.TractorMapper;
 import com.gss.security.LoginUser;
 import com.gss.statemachine.AppointmentEvent;
@@ -18,6 +20,7 @@ import com.gss.statemachine.AppointmentStateMachine;
 import com.gss.statemachine.EirEvent;
 import com.gss.statemachine.EirStateMachine;
 import com.gss.vo.AppointmentVO;
+import com.gss.vo.LaneCapacityCellVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -43,6 +46,7 @@ public class AppointmentService {
     private final ApptSlotCapacityMapper slotCapacityMapper;
     private final EirOrderMapper eirMapper;
     private final TractorMapper tractorMapper;
+    private final GateLaneMapper laneMapper;
     private final EirStateMachine stateMachine;
     private final AppointmentStateMachine apptStateMachine;
 
@@ -139,6 +143,15 @@ public class AppointmentService {
             throw new BusinessException("预约车牌号不能为空");
         }
 
+        // M3：预约必须落到启用中的车道
+        GateLane lane = laneMapper.selectById(dto.getLaneId());
+        if (lane == null) {
+            throw new BusinessException("预约车道不存在");
+        }
+        if (!Constants.LANE_ENABLED.equals(lane.getStatus())) {
+            throw new BusinessException("车道 " + lane.getLaneNo() + " 已停用，请选择其他车道");
+        }
+
         Appointment appt = new Appointment();
         appt.setEirId(eir.getId());
         appt.setPlateNo(plateNo.trim());
@@ -146,13 +159,16 @@ public class AppointmentService {
         appt.setTimeSlot(timeSlot);
         appt.setStatus(Constants.APPT_ACTIVE);
         appt.setDriverId(driverId);
+        appt.setLaneId(dto.getLaneId());
         // 凭证号由服务端生成，前端不可传入；唯一索引 + 冲突重试保证并发不重复
         appt.setVoucherNo(nextVoucherNo());
 
         // 时段容量控制：幂等初始化容量记录后 CAS 扣减，影响行数为 0 即已约满，防并发超约
-        slotCapacityMapper.insertIgnore(dto.getApptDate(), timeSlot, Constants.DEFAULT_SLOT_CAPACITY);
-        if (slotCapacityMapper.tryBook(dto.getApptDate(), timeSlot) == 0) {
-            throw new BusinessException("该时段预约已满，请选择其他时段");
+        // M3：容量按车道隔离——初始化/扣减都带 lane_id，不同车道互不影响
+        slotCapacityMapper.insertIgnore(dto.getLaneId(), dto.getApptDate(), timeSlot,
+                lane.getCapacityPerSlot() == null ? Constants.DEFAULT_SLOT_CAPACITY : lane.getCapacityPerSlot());
+        if (slotCapacityMapper.tryBook(dto.getLaneId(), dto.getApptDate(), timeSlot) == 0) {
+            throw new BusinessException("车道 " + lane.getLaneNo() + " 该时段预约已满，请选择其他车道或时段");
         }
 
         insertWithVoucherRetry(appt);
@@ -206,9 +222,9 @@ public class AppointmentService {
             throw new BusinessException("预约状态已被其他操作变更，请刷新后重试");
         }
 
-        // 释放时段容量
+        // 释放时段容量（M3：按预约所属车道归还，避免还错车道）
         if (StringUtils.hasText(appt.getTimeSlot())) {
-            slotCapacityMapper.release(appt.getApptDate(), appt.getTimeSlot());
+            slotCapacityMapper.release(appt.getLaneId(), appt.getApptDate(), appt.getTimeSlot());
         }
 
         // 单证回退到已派单（CAS：仅仍为 APPOINTED 才生效），允许重新预约
@@ -261,11 +277,10 @@ public class AppointmentService {
     }
 
     /**
-     * 查询某日期各时段剩余容量（未初始化的时段返回默认容量），创建预约弹窗展示约满情况
+     * 查询某日期「车道 × 时段」容量矩阵（M3），创建预约弹窗据此选择车道与时段。
      */
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> slotCapacity(String date) {
-        return slotCapacityMapper.selectRemain(date, Arrays.asList(Constants.TIME_SLOTS),
-                Constants.DEFAULT_SLOT_CAPACITY);
+    public List<LaneCapacityCellVO> slotCapacity(LocalDate date) {
+        return laneMapper.selectCapacityMatrix(date);
     }
 }

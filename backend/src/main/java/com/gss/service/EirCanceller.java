@@ -61,7 +61,7 @@ public class EirCanceller {
         int rows = appointmentMapper.updateStatusIf(activeAppt.getId(),
                 cancelled, Constants.APPT_ACTIVE);
         if (rows == 1 && StringUtils.hasText(activeAppt.getTimeSlot())) {
-            slotCapacityMapper.release(activeAppt.getApptDate(), activeAppt.getTimeSlot());
+            slotCapacityMapper.release(activeAppt.getLaneId(), activeAppt.getApptDate(), activeAppt.getTimeSlot());
         }
     }
 }

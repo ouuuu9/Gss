@@ -62,7 +62,7 @@ public class ApptReleaseTask {
             return;
         }
         if (StringUtils.hasText(appt.getTimeSlot())) {
-            slotCapacityMapper.release(appt.getApptDate(), appt.getTimeSlot());
+            slotCapacityMapper.release(appt.getLaneId(), appt.getApptDate(), appt.getTimeSlot());
         }
         EirOrder eir = eirMapper.selectById(appt.getEirId());
         if (eir == null || !Constants.ST_APPOINTED.equals(eir.getStatus())) {

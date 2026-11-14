@@ -52,6 +52,7 @@ class EirCancellerTest {
     private Appointment activeAppointment() {
         Appointment a = new Appointment();
         a.setId(100L);
+        a.setLaneId(1L);
         a.setEirId(10L);
         a.setStatus(Constants.APPT_ACTIVE);
         a.setApptDate(APPT_DATE);
@@ -71,7 +72,7 @@ class EirCancellerTest {
         canceller.releaseActiveAppointment(eir());
 
         verify(appointmentMapper).updateStatusIf(100L, Constants.APPT_CANCELLED, Constants.APPT_ACTIVE);
-        verify(slotCapacityMapper).release(APPT_DATE, TIME_SLOT);
+        verify(slotCapacityMapper).release(1L, APPT_DATE, TIME_SLOT);
     }
 
     /** 重复调用（预约已不是 ACTIVE）：查不到有效预约，不再回补名额 */
@@ -83,7 +84,7 @@ class EirCancellerTest {
         canceller.releaseActiveAppointment(eir());
 
         verify(appointmentMapper, never()).updateStatusIf(any(), any(), any());
-        verify(slotCapacityMapper, never()).release(any(), any());
+        verify(slotCapacityMapper, never()).release(any(), any(), any());
     }
 
     /** 并发下 CAS 没抢到（返回 0）：说明别人已经取消过，不能再释放名额 */
@@ -95,7 +96,7 @@ class EirCancellerTest {
 
         canceller.releaseActiveAppointment(eir());
 
-        verify(slotCapacityMapper, never()).release(any(), any());
+        verify(slotCapacityMapper, never()).release(any(), any(), any());
     }
 
     /** 预约时段为空（历史脏数据）：状态照常取消，但不能拿空时段去释放名额 */
@@ -109,6 +110,6 @@ class EirCancellerTest {
 
         canceller.releaseActiveAppointment(eir());
 
-        verify(slotCapacityMapper, never()).release(any(), any());
+        verify(slotCapacityMapper, never()).release(any(), any(), any());
     }
 }
