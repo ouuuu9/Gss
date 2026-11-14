@@ -152,7 +152,10 @@ public class ExcelExporter {
         }
         return switch (status) {
             case "ACTIVE" -> "有效";
+            case "VERIFIED" -> "已核验";
+            case "RELEASED" -> "已放行";
             case "CANCELLED" -> "已取消";
+            case "NO_SHOW" -> "失约";
             case "EXPIRED" -> "已过期";
             default -> status;
         };

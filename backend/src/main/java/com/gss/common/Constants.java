@@ -43,8 +43,28 @@ public final class Constants {
     /* ==================== 预约状态 ==================== */
     public static final String APPT_ACTIVE = "ACTIVE";
     public static final String APPT_CANCELLED = "CANCELLED";
-    /** 已过期（超时未进闸，定时任务自动释放） */
+    /** 已核验（闸口凭证核验通过，尚未出闸） */
+    public static final String APPT_VERIFIED = "VERIFIED";
+    /** 已放行（出闸后释放） */
+    public static final String APPT_RELEASED = "RELEASED";
+    /** 失约（时段结束仍未核验，定时任务置位；M2 起取代旧的 EXPIRED） */
+    public static final String APPT_NO_SHOW = "NO_SHOW";
+    /** 旧状态，仅用于历史数据识别（迁移时统一改为 NO_SHOW） */
     public static final String APPT_EXPIRED = "EXPIRED";
+
+    /* ==================== 闸口核验 ==================== */
+    /** 核验窗口：时段开始前/结束后各允许 30 分钟 */
+    public static final int VERIFY_WINDOW_MINUTES = 30;
+    /** 核验结果 */
+    public static final String CHECK_PASS = "PASS";
+    public static final String CHECK_FAIL = "FAIL";
+    /** 核验异常类型 */
+    public static final String ABNORMAL_NO_APPOINTMENT = "NO_APPOINTMENT";
+    public static final String ABNORMAL_CANCELLED = "CANCELLED";
+    public static final String ABNORMAL_EXPIRED = "EXPIRED";
+    public static final String ABNORMAL_DOC_MISMATCH = "DOC_MISMATCH";
+    public static final String ABNORMAL_EARLY = "EARLY";
+    public static final String ABNORMAL_LATE = "LATE";
 
     /* ==================== 预约时段 ==================== */
     /** 8 个两小时进港时段（06:00-22:00） */

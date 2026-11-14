@@ -9,6 +9,7 @@ import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.TractorMapper;
 import com.gss.security.LoginUser;
+import com.gss.statemachine.AppointmentStateMachine;
 import com.gss.statemachine.EirStateMachine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class AppointmentEligibilityTest {
     @BeforeEach
     void setUp() {
         service = new AppointmentService(appointmentMapper, slotCapacityMapper, eirMapper,
-                tractorMapper, new EirStateMachine());
+                tractorMapper, new EirStateMachine(), new AppointmentStateMachine());
     }
 
     private LoginUser companyUser() {

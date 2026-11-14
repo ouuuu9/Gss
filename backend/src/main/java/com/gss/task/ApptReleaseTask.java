@@ -6,6 +6,8 @@ import com.gss.entity.EirOrder;
 import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.EirOrderMapper;
+import com.gss.statemachine.AppointmentEvent;
+import com.gss.statemachine.AppointmentStateMachine;
 import com.gss.statemachine.EirEvent;
 import com.gss.statemachine.EirStateMachine;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,7 @@ public class ApptReleaseTask {
     private final ApptSlotCapacityMapper slotCapacityMapper;
     private final EirOrderMapper eirMapper;
     private final EirStateMachine stateMachine;
+    private final AppointmentStateMachine apptStateMachine;
 
     @Scheduled(fixedDelay = 60000)
     public void releaseExpiredAppointments() {
@@ -51,8 +54,10 @@ public class ApptReleaseTask {
     }
 
     private void releaseOne(Appointment appt) {
-        // CAS：仅仍为 ACTIVE 才置为已过期，防止与取消/进闸并发时重复处理
-        int rows = appointmentMapper.updateStatusIf(appt.getId(), Constants.APPT_EXPIRED, Constants.APPT_ACTIVE);
+        // 状态机校验（ACTIVE → NO_SHOW）+ CAS：仅仍为 ACTIVE 才置为失约，防并发重复处理。
+        // selectExpired 已过滤 verify_time 非空的记录，按时到港的车辆不会被判失约。
+        String noShow = apptStateMachine.validateAndTransition(appt.getStatus(), AppointmentEvent.EXPIRE);
+        int rows = appointmentMapper.updateStatusIf(appt.getId(), noShow, Constants.APPT_ACTIVE);
         if (rows == 0) {
             return;
         }

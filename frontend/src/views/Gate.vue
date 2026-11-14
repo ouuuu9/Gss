@@ -85,14 +85,111 @@
       </el-card>
     </el-col>
   </el-row>
+
+  <!-- M2：凭证核验 + 核验留痕 -->
+  <el-row :gutter="16">
+    <el-col :md="9" :xs="24">
+      <el-card shadow="never" class="gate-card">
+        <template #header>
+          <div class="card-header">
+            <el-icon class="header-icon"><Ticket /></el-icon>
+            <span class="card-title">预约凭证核验</span>
+          </div>
+        </template>
+
+        <el-form label-width="78px" @submit.prevent>
+          <el-form-item label="凭证号">
+            <el-input v-model="voucherNo" placeholder="APT20261115000001" clearable @keyup.enter="handleVerify" />
+          </el-form-item>
+          <el-form-item label="IC 卡号">
+            <el-input v-model="verifyIcCard" placeholder="与凭证号二选一，或同时填" clearable @keyup.enter="handleVerify" />
+          </el-form-item>
+          <el-form-item label="车道号">
+            <el-input v-model="laneCode" placeholder="选填（本轮仅留痕，M3 接车道配额）" clearable />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="verifying" @click="handleVerify">核验并放行判定</el-button>
+          </el-form-item>
+        </el-form>
+
+        <el-alert
+          v-if="verifyResult"
+          :type="verifyResult.result === 'PASS' ? 'success' : 'error'"
+          :closable="false"
+          show-icon
+          :title="verifyResult.result === 'PASS'
+            ? '核验通过'
+            : '核验失败' + (verifyResult.abnormalType ? '（' + abnormalLabel(verifyResult.abnormalType) + '）' : '')"
+          :description="verifyResult.message"
+        />
+      </el-card>
+    </el-col>
+
+    <el-col :md="15" :xs="24">
+      <el-card shadow="never" class="gate-card">
+        <template #header>
+          <div class="card-header">
+            <span class="card-title">核验记录</span>
+            <div class="log-tools">
+              <el-select v-model="logQuery.result" placeholder="全部结果" clearable style="width: 120px" @change="loadCheckLogs">
+                <el-option label="通过" value="PASS" />
+                <el-option label="失败" value="FAIL" />
+              </el-select>
+              <el-button text :icon="Refresh" @click="loadCheckLogs" />
+            </div>
+          </div>
+        </template>
+
+        <el-table :data="checkLogs" v-loading="loadingLogs" border stripe empty-text="暂无核验记录">
+          <el-table-column label="结果" width="80" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.result === 'PASS' ? 'success' : 'danger'">{{ row.result === 'PASS' ? '通过' : '失败' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="异常类型" width="130" align="center">
+            <template #default="{ row }">
+              <span v-if="row.abnormalType">{{ abnormalLabel(row.abnormalType) }}</span>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="voucherNo" label="凭证号" width="170">
+            <template #default="{ row }">{{ row.voucherNo || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="eirNo" label="单证编号" width="160">
+            <template #default="{ row }">{{ row.eirNo || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="operatorName" label="操作人" width="100">
+            <template #default="{ row }">{{ row.operatorName || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="核验时间" width="165">
+            <template #default="{ row }">{{ formatTime(row.checkTime) }}</template>
+          </el-table-column>
+          <el-table-column prop="remark" label="备注" min-width="150">
+            <template #default="{ row }">{{ row.remark || '—' }}</template>
+          </el-table-column>
+        </el-table>
+
+        <el-pagination
+          v-model:current-page="logQuery.page"
+          v-model:page-size="logQuery.size"
+          :total="logTotal"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          class="log-pager"
+          @size-change="loadCheckLogs"
+          @current-change="loadCheckLogs"
+        />
+      </el-card>
+    </el-col>
+  </el-row>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, CreditCard, Download, Upload, InfoFilled } from '@element-plus/icons-vue'
+import { Refresh, CreditCard, Download, Upload, InfoFilled, Ticket } from '@element-plus/icons-vue'
 import { gateApi } from '@/api'
-import { BUSINESS_TYPE, dictLabel, dictType } from '@/utils/dict'
+import { BUSINESS_TYPE, ABNORMAL_TYPE, dictLabel, dictType } from '@/utils/dict'
 import { formatTime } from '@/utils/format'
 
 const icCardNo = ref('')
@@ -107,6 +204,53 @@ const opMap = {
 }
 
 const exampleCards = ['IC0001', 'IC0002', 'IC0003']
+
+/* ---------- M2：凭证核验 ---------- */
+const voucherNo = ref('')
+const verifyIcCard = ref('')
+const laneCode = ref('')
+const verifying = ref(false)
+const verifyResult = ref(null)
+const checkLogs = ref([])
+const loadingLogs = ref(false)
+const logTotal = ref(0)
+const logQuery = ref({ page: 1, size: 10, result: '' })
+
+const abnormalLabel = (value) => dictLabel(ABNORMAL_TYPE, value)
+
+async function handleVerify() {
+  const voucher = voucherNo.value.trim()
+  const icCard = verifyIcCard.value.trim()
+  if (!voucher && !icCard) {
+    ElMessage.warning('凭证号与 IC 卡号至少填一个')
+    return
+  }
+  verifying.value = true
+  try {
+    verifyResult.value = await gateApi.verify({
+      voucherNo: voucher || null,
+      icCard: icCard || null,
+      laneCode: laneCode.value.trim() || null
+    })
+    if (verifyResult.value.result !== 'PASS') {
+      ElMessage.warning(verifyResult.value.message || '核验失败')
+    }
+    loadCheckLogs()
+  } finally {
+    verifying.value = false
+  }
+}
+
+async function loadCheckLogs() {
+  loadingLogs.value = true
+  try {
+    const data = await gateApi.checkLogs(logQuery.value)
+    checkLogs.value = data.rows
+    logTotal.value = data.total
+  } finally {
+    loadingLogs.value = false
+  }
+}
 
 async function loadRecent() {
   loadingRecent.value = true
@@ -143,7 +287,10 @@ async function handleGateOp(action) {
   }
 }
 
-onMounted(loadRecent)
+onMounted(() => {
+  loadRecent()
+  loadCheckLogs()
+})
 </script>
 
 <style scoped>
@@ -244,5 +391,16 @@ onMounted(loadRecent)
 
 .dot-out {
   background: #e6a23c;
+}
+
+.log-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-pager {
+  margin-top: 12px;
+  justify-content: flex-end;
 }
 </style>

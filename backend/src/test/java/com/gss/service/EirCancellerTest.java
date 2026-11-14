@@ -6,6 +6,7 @@ import com.gss.entity.EirOrder;
 import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.EirOrderMapper;
+import com.gss.statemachine.AppointmentStateMachine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,7 +38,8 @@ class EirCancellerTest {
 
     @BeforeEach
     void setUp() {
-        canceller = new EirCanceller(eirMapper, appointmentMapper, slotCapacityMapper);
+        canceller = new EirCanceller(eirMapper, appointmentMapper, slotCapacityMapper,
+                new AppointmentStateMachine());
     }
 
     private EirOrder eir() {

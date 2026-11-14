@@ -32,8 +32,20 @@ export const BUSINESS_TYPE = [
 // 预约状态
 export const APPT_STATUS = [
   { value: 'ACTIVE', label: '有效', type: 'success' },
+  { value: 'VERIFIED', label: '已核验', type: 'primary' },
+  { value: 'RELEASED', label: '已放行', type: 'success' },
   { value: 'CANCELLED', label: '已取消', type: 'info' },
-  { value: 'EXPIRED', label: '已过期', type: 'warning' }
+  { value: 'NO_SHOW', label: '失约', type: 'warning' }
+]
+
+// 闸口核验异常类型
+export const ABNORMAL_TYPE = [
+  { value: 'NO_APPOINTMENT', label: '无预约', type: 'danger' },
+  { value: 'CANCELLED', label: '预约已取消', type: 'info' },
+  { value: 'EXPIRED', label: '预约已过期', type: 'warning' },
+  { value: 'DOC_MISMATCH', label: '单证/车辆不匹配', type: 'danger' },
+  { value: 'EARLY', label: '早到', type: 'warning' },
+  { value: 'LATE', label: '晚到', type: 'warning' }
 ]
 
 // 缴费状态（2=已退）

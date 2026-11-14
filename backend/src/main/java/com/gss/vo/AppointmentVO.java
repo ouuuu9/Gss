@@ -24,6 +24,12 @@ public class AppointmentVO {
     /** 预约时段（如 08:00-10:00） */
     private String timeSlot;
     private String status;
+    /** 预约凭证号 */
+    private String voucherNo;
+    /** 核验时间 */
+    private LocalDateTime verifyTime;
+    /** 放行时间 */
+    private LocalDateTime releaseTime;
     private Long driverId;
     /** 司机姓名 */
     private String driverName;

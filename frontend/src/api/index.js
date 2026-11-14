@@ -86,6 +86,9 @@ export const gateApi = {
   checkin: (icCardNo) => request.post('/api/gate/checkin', { icCardNo }),
   checkout: (icCardNo) => request.post('/api/gate/checkout', { icCardNo }),
   audit: (eirId) => request.post('/api/gate/audit', { eirId }),
+  // M2：凭证核验与核验留痕
+  verify: (data) => request.post('/api/gate/verify', data),
+  checkLogs: (params) => request.get('/api/gate/check-logs', { params }),
   recentOps: () => request.get('/api/gate/recent-ops')
 }
 

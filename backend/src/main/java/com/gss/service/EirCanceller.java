@@ -7,6 +7,8 @@ import com.gss.entity.EirOrder;
 import com.gss.mapper.AppointmentMapper;
 import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.EirOrderMapper;
+import com.gss.statemachine.AppointmentEvent;
+import com.gss.statemachine.AppointmentStateMachine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -23,6 +25,7 @@ public class EirCanceller {
     private final EirOrderMapper eirMapper;
     private final AppointmentMapper appointmentMapper;
     private final ApptSlotCapacityMapper slotCapacityMapper;
+    private final AppointmentStateMachine apptStateMachine;
 
     /**
      * 立即作废单证。必须在外层事务内调用：预约取消、名额归还与状态 CAS 同生共死。
@@ -53,8 +56,10 @@ public class EirCanceller {
         if (activeAppt == null) {
             return;
         }
+        // 状态机校验（ACTIVE → CANCELLED）后再 CAS，Service 不直接 setStatus
+        String cancelled = apptStateMachine.validateAndTransition(activeAppt.getStatus(), AppointmentEvent.CANCEL);
         int rows = appointmentMapper.updateStatusIf(activeAppt.getId(),
-                Constants.APPT_CANCELLED, Constants.APPT_ACTIVE);
+                cancelled, Constants.APPT_ACTIVE);
         if (rows == 1 && StringUtils.hasText(activeAppt.getTimeSlot())) {
             slotCapacityMapper.release(activeAppt.getApptDate(), activeAppt.getTimeSlot());
         }

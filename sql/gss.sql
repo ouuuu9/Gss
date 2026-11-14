@@ -129,11 +129,16 @@ CREATE TABLE appointment (
     plate_no    VARCHAR(20) NOT NULL COMMENT '预约车牌号',
     appt_date   DATE        NOT NULL COMMENT '预约日期',
     time_slot   VARCHAR(20) DEFAULT NULL COMMENT '预约时段（8个两小时时段，如 08:00-10:00）',
-    status      VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE有效/CANCELLED已取消',
+    status      VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+                COMMENT '状态：ACTIVE有效/VERIFIED已核验/RELEASED已放行/CANCELLED已取消/NO_SHOW失约',
     driver_id   BIGINT      NOT NULL COMMENT '司机ID',
+    voucher_no  VARCHAR(24) DEFAULT NULL COMMENT '预约凭证号（APT+yyyyMMdd+6位当日序列，唯一）',
+    verify_time DATETIME    DEFAULT NULL COMMENT '闸口核验时间（为空表示未核验，失约判定依赖它）',
+    release_time DATETIME   DEFAULT NULL COMMENT '放行时间（出闸释放时写入）',
     create_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
+    UNIQUE KEY uk_voucher_no (voucher_no),
     KEY idx_eir (eir_id),
     KEY idx_driver (driver_id),
     KEY idx_appt_date (appt_date)
@@ -206,6 +211,25 @@ CREATE TABLE appt_slot_capacity (
     PRIMARY KEY (id),
     UNIQUE KEY uk_date_slot (appt_date, time_slot)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预约时段容量表';
+
+-- ----------------------------------------------------------------------
+-- 8.1 闸口核验留痕表（M2：每次核验尝试都落一条，PASS/FAIL 均留痕）
+-- ----------------------------------------------------------------------
+CREATE TABLE gate_check_log (
+    id             BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键',
+    voucher_no     VARCHAR(24) DEFAULT NULL COMMENT '凭证号（IC 卡核验时回填对应预约凭证号）',
+    eir_id         BIGINT      DEFAULT NULL COMMENT '关联单证ID（查不到预约时为空）',
+    appointment_id BIGINT      DEFAULT NULL COMMENT '关联预约ID（查不到预约时为空）',
+    check_time     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '核验时间',
+    result         VARCHAR(10) NOT NULL COMMENT '结果：PASS通过/FAIL失败',
+    abnormal_type  VARCHAR(30) DEFAULT NULL COMMENT '异常类型：NO_APPOINTMENT/CANCELLED/EXPIRED/DOC_MISMATCH/EARLY/LATE',
+    operator_id    BIGINT      DEFAULT NULL COMMENT '操作人用户ID',
+    remark         VARCHAR(255) DEFAULT NULL COMMENT '备注（IC卡、车道号、多预约提示等）',
+    PRIMARY KEY (id),
+    KEY idx_voucher (voucher_no),
+    KEY idx_eir (eir_id),
+    KEY idx_check_time (check_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='闸口核验留痕表';
 
 -- ----------------------------------------------------------------------
 -- 9. 操作审计日志表（AOP 自动记录，谁/何时/从哪个IP/干了什么/结果）

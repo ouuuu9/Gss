@@ -38,6 +38,12 @@
       <el-table-column v-if="isAdmin" prop="companyName" label="所属公司" min-width="160" />
       <el-table-column prop="apptDate" label="预约日期" width="120" />
       <el-table-column prop="timeSlot" label="预约时段" width="110" align="center" />
+      <el-table-column label="凭证号" width="170">
+        <template #default="{ row }">{{ row.voucherNo || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="核验时间" width="165">
+        <template #default="{ row }">{{ formatTime(row.verifyTime) }}</template>
+      </el-table-column>
       <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="dictType(APPT_STATUS, row.status)">

@@ -9,6 +9,7 @@
 
     <select id="selectPage" resultType="com.gss.vo.AppointmentVO">
         SELECT a.id, a.eir_id, a.plate_no, a.appt_date, a.time_slot, a.status, a.driver_id, a.create_time,
+               a.voucher_no AS voucherNo, a.verify_time AS verifyTime, a.release_time AS releaseTime,
                e.eir_no AS eirNo, e.business_type AS businessType, e.container_no AS containerNo,
                e.company_id AS companyId, c.name AS companyName,
                d.name AS driverName
@@ -67,9 +68,16 @@
         LIMIT 1
     </select>
 
+    <select id="selectByEirIdAndStatus" resultType="com.gss.entity.Appointment">
+        SELECT * FROM appointment
+        WHERE eir_id = #{eirId} AND status = #{status}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
     <insert id="insert" parameterType="com.gss.entity.Appointment" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO appointment (eir_id, plate_no, appt_date, time_slot, status, driver_id)
-        VALUES (#{eirId}, #{plateNo}, #{apptDate}, #{timeSlot}, #{status}, #{driverId})
+        INSERT INTO appointment (eir_id, plate_no, appt_date, time_slot, status, driver_id, voucher_no)
+        VALUES (#{eirId}, #{plateNo}, #{apptDate}, #{timeSlot}, #{status}, #{driverId}, #{voucherNo})
     </insert>
 
     <update id="updateStatus">
@@ -81,13 +89,51 @@
         WHERE id = #{id} AND status = #{expectedStatus}
     </update>
 
-    <!-- 已过时段仍未进闸的有效预约：日期已过，或当天时段结束时刻早于当前时间 -->
+    <!--
+      失约口径（M2 修正）：只有【从未核验】且时段已结束的 ACTIVE 预约才算失约。
+      verify_time 非空说明车辆已到闸核验，哪怕尚未出闸也不能再判 NO_SHOW，
+      否则「按时到港」会被统计成失约（原实现的缺陷）。
+    -->
     <select id="selectExpired" resultType="com.gss.entity.Appointment">
         SELECT * FROM appointment
         WHERE status = 'ACTIVE'
+          AND verify_time IS NULL
           AND (appt_date &lt; CURDATE()
                OR (appt_date = CURDATE()
                    AND SUBSTRING_INDEX(time_slot, '-', -1) &lt; DATE_FORMAT(NOW(), '%H:%i')))
     </select>
+
+    <select id="selectByVoucherNo" resultType="com.gss.entity.Appointment">
+        SELECT * FROM appointment WHERE voucher_no = #{voucherNo} LIMIT 1
+    </select>
+
+    <!-- IC 卡核验：按派单拖车找有效预约，按时段距当前时刻由近到远排序 -->
+    <select id="selectActiveByTractorId" resultType="com.gss.entity.Appointment">
+        SELECT a.*
+        FROM appointment a
+        JOIN eir_order e ON e.id = a.eir_id
+        WHERE e.tractor_id = #{tractorId}
+          AND a.status = 'ACTIVE'
+        ORDER BY ABS(TIMESTAMPDIFF(MINUTE, CONCAT(a.appt_date, ' ', LEFT(a.time_slot, 5)), NOW())),
+                 a.id DESC
+    </select>
+
+    <select id="selectMaxVoucherSeq" resultType="java.lang.Integer">
+        SELECT MAX(CAST(SUBSTRING(voucher_no, 12) AS UNSIGNED))
+        FROM appointment
+        WHERE voucher_no LIKE CONCAT(#{prefix}, '%')
+    </select>
+
+    <update id="markVerified">
+        UPDATE appointment
+        SET status = #{status}, verify_time = #{verifyTime}
+        WHERE id = #{id} AND status = #{expectedStatus}
+    </update>
+
+    <update id="markReleased">
+        UPDATE appointment
+        SET status = #{status}, release_time = #{releaseTime}
+        WHERE id = #{id} AND status = #{expectedStatus}
+    </update>
 
 </mapper>

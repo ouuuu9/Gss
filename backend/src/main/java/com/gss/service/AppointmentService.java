@@ -13,16 +13,20 @@ import com.gss.mapper.ApptSlotCapacityMapper;
 import com.gss.mapper.EirOrderMapper;
 import com.gss.mapper.TractorMapper;
 import com.gss.security.LoginUser;
+import com.gss.statemachine.AppointmentEvent;
+import com.gss.statemachine.AppointmentStateMachine;
 import com.gss.statemachine.EirEvent;
 import com.gss.statemachine.EirStateMachine;
 import com.gss.vo.AppointmentVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +44,11 @@ public class AppointmentService {
     private final EirOrderMapper eirMapper;
     private final TractorMapper tractorMapper;
     private final EirStateMachine stateMachine;
+    private final AppointmentStateMachine apptStateMachine;
+
+    /** 凭证号前缀：APT + yyyyMMdd + 6 位当日序列 */
+    private static final String VOUCHER_PREFIX = "APT";
+    private static final DateTimeFormatter VOUCHER_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
     /**
      * 分页查询预约。
@@ -137,6 +146,8 @@ public class AppointmentService {
         appt.setTimeSlot(timeSlot);
         appt.setStatus(Constants.APPT_ACTIVE);
         appt.setDriverId(driverId);
+        // 凭证号由服务端生成，前端不可传入；唯一索引 + 冲突重试保证并发不重复
+        appt.setVoucherNo(nextVoucherNo());
 
         // 时段容量控制：幂等初始化容量记录后 CAS 扣减，影响行数为 0 即已约满，防并发超约
         slotCapacityMapper.insertIgnore(dto.getApptDate(), timeSlot, Constants.DEFAULT_SLOT_CAPACITY);
@@ -144,7 +155,7 @@ public class AppointmentService {
             throw new BusinessException("该时段预约已满，请选择其他时段");
         }
 
-        appointmentMapper.insert(appt);
+        insertWithVoucherRetry(appt);
 
         // 单证推进为已预约（CAS：仅仍为 DISPATCHED 才生效），防止并发重复预约
         EirOrder update = new EirOrder();
@@ -187,8 +198,10 @@ public class AppointmentService {
         // 车辆已进闸则不能取消预约
         String targetStatus = stateMachine.validateAndTransition(eir.getStatus(), EirEvent.CANCEL_APPOINT);
 
-        // CAS：仅仍为 ACTIVE 才置为已取消，防并发重复取消导致容量重复释放
-        int rows = appointmentMapper.updateStatusIf(id, Constants.APPT_CANCELLED, Constants.APPT_ACTIVE);
+        // 状态机校验（ACTIVE → CANCELLED）+ CAS：仅仍为 ACTIVE 才置为已取消，
+        // 防并发重复取消导致容量重复释放；Service 不直接 setStatus
+        String cancelledStatus = apptStateMachine.validateAndTransition(appt.getStatus(), AppointmentEvent.CANCEL);
+        int rows = appointmentMapper.updateStatusIf(id, cancelledStatus, Constants.APPT_ACTIVE);
         if (rows == 0) {
             throw new BusinessException("预约状态已被其他操作变更，请刷新后重试");
         }
@@ -218,6 +231,33 @@ public class AppointmentService {
             throw new BusinessException("该单证没有进行中的预约");
         }
         cancel(appt.getId(), operator);
+    }
+
+    /**
+     * 生成当日凭证号：APT + yyyyMMdd + 6 位当日序列，日重置。
+     * 序列取当日最大值 +1；并发下可能撞号，由 voucher_no 唯一索引兜底，调用方重试一次。
+     */
+    private String nextVoucherNo() {
+        String prefix = VOUCHER_PREFIX + LocalDate.now().format(VOUCHER_DATE);
+        Integer max = appointmentMapper.selectMaxVoucherSeq(prefix);
+        int next = (max == null ? 0 : max) + 1;
+        if (next > 999999) {
+            throw new BusinessException("当日预约凭证号已用尽，请联系管理员");
+        }
+        return prefix + String.format("%06d", next);
+    }
+
+    /**
+     * 插入预约：凭证号唯一索引冲突时重新取号重试一次（并发创建场景）。
+     * MySQL 的重复键错误只回滚单条语句、不中断当前事务，因此重试是安全的。
+     */
+    private void insertWithVoucherRetry(Appointment appt) {
+        try {
+            appointmentMapper.insert(appt);
+        } catch (DuplicateKeyException conflict) {
+            appt.setVoucherNo(nextVoucherNo());
+            appointmentMapper.insert(appt);
+        }
     }
 
     /**

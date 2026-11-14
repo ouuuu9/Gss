@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.GateCheckLogMapper">
+
+    <insert id="insert" parameterType="com.gss.entity.GateCheckLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO gate_check_log (voucher_no, eir_id, appointment_id, check_time, result,
+                                    abnormal_type, operator_id, remark)
+        VALUES (#{voucherNo}, #{eirId}, #{appointmentId}, #{checkTime}, #{result},
+                #{abnormalType}, #{operatorId}, #{remark})
+    </insert>
+
+    <select id="selectPage" resultType="com.gss.vo.GateCheckLogVO">
+        SELECT g.id, g.voucher_no AS voucherNo, g.eir_id AS eirId, e.eir_no AS eirNo,
+               g.appointment_id AS appointmentId, g.check_time AS checkTime,
+               g.result, g.abnormal_type AS abnormalType, g.operator_id AS operatorId,
+               u.name AS operatorName, g.remark
+        FROM gate_check_log g
+        LEFT JOIN eir_order e ON e.id = g.eir_id
+        LEFT JOIN sys_user u ON u.id = g.operator_id
+        <where>
+            <if test="result != null and result != ''">
+                AND g.result = #{result}
+            </if>
+        </where>
+        ORDER BY g.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM gate_check_log g
+        <where>
+            <if test="result != null and result != ''">
+                AND g.result = #{result}
+            </if>
+        </where>
+    </select>
+
+</mapper>
