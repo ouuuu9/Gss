@@ -16,13 +16,16 @@
         LEFT JOIN eir_order e ON e.id = a.eir_id
         LEFT JOIN transport_company c ON c.id = e.company_id
         LEFT JOIN (
-            SELECT appointment_id,
-                   SUM(CASE WHEN result = 'PASS' AND (remark IS NULL OR remark NOT LIKE '%重复核验%')
+            <!-- 日期下推：先按 appt_date 把预约范围缩到统计区间，再只聚合这些预约的核验记录，
+                 避免随 gate_check_log 增长而全表聚合（M5 优化，数字与下推前一致） -->
+            SELECT gcl.appointment_id,
+                   SUM(CASE WHEN gcl.result = 'PASS' AND (gcl.remark IS NULL OR gcl.remark NOT LIKE '%重复核验%')
                             THEN 1 ELSE 0 END) AS pass_cnt,
-                   SUM(CASE WHEN result = 'FAIL' THEN 1 ELSE 0 END) AS fail_cnt
-            FROM gate_check_log
-            WHERE appointment_id IS NOT NULL
-            GROUP BY appointment_id
+                   SUM(CASE WHEN gcl.result = 'FAIL' THEN 1 ELSE 0 END) AS fail_cnt
+            FROM gate_check_log gcl
+            JOIN appointment a2 ON a2.id = gcl.appointment_id
+            WHERE a2.appt_date BETWEEN #{q.startDate} AND #{q.endDate}
+            GROUP BY gcl.appointment_id
         ) g ON g.appointment_id = a.id
         WHERE a.appt_date BETWEEN #{q.startDate} AND #{q.endDate}
         <if test="q.laneId != null">

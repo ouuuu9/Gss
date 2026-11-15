@@ -41,6 +41,20 @@
     </select>
 
     <!-- 车道×时段矩阵：一条 SQL 把「车道 × 8 个时段」补齐，未配置的格子按车道默认容量 -->
+    <select id="selectOrphanLaneAppointmentIds" resultType="java.lang.Long">
+        SELECT a.id FROM appointment a
+        LEFT JOIN gate_lane l ON l.id = a.lane_id
+        WHERE a.lane_id IS NOT NULL AND l.id IS NULL
+        ORDER BY a.id
+        LIMIT #{limit}
+    </select>
+
+    <select id="countOrphanLaneAppointments" resultType="java.lang.Long">
+        SELECT COUNT(1) FROM appointment a
+        LEFT JOIN gate_lane l ON l.id = a.lane_id
+        WHERE a.lane_id IS NOT NULL AND l.id IS NULL
+    </select>
+
     <select id="selectCapacityMatrix" resultType="com.gss.vo.LaneCapacityCellVO">
         SELECT l.id AS laneId, l.gate_no AS gateNo, l.lane_no AS laneNo,
                s.time_slot AS timeSlot,

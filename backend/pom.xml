@@ -21,6 +21,9 @@
         <java.version>17</java.version>
         <mybatis.version>3.0.3</mybatis.version>
         <jjwt.version>0.12.5</jjwt.version>
+        <!-- 默认只跑单元测试（全 Mockito、不依赖数据库）；-Pintegration 才跑真库集成测试 -->
+        <test.excludedGroups>integration</test.excludedGroups>
+        <test.groups></test.groups>
     </properties>
 
     <dependencies>
@@ -117,6 +120,15 @@
 
     <build>
     <plugins>
+        <!-- 单元测试默认排除 @Tag("integration")：没有数据库也要能 mvn test 全绿 -->
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+                <excludedGroups>${test.excludedGroups}</excludedGroups>
+                <groups>${test.groups}</groups>
+            </configuration>
+        </plugin>
         <plugin>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-maven-plugin</artifactId>
@@ -133,5 +145,16 @@
         </plugin>
     </plugins>
 </build>
+
+    <profiles>
+        <!-- mvn -o test -Pintegration：只跑真库集成测试（需 3307 上的库） -->
+        <profile>
+            <id>integration</id>
+            <properties>
+                <test.excludedGroups></test.excludedGroups>
+                <test.groups>integration</test.groups>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>

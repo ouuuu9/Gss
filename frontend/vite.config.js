@@ -25,6 +25,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 端口占用时直接报错，不要自动跳到 5174（多实例混乱的根源）
+    strictPort: true,
     host: true,
     open: true,
     allowedHosts: true,

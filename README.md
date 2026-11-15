@@ -151,3 +151,47 @@ Gss/
 ## 十、更多文档
 
 系统设计说明书（架构、数据库、核心模块、并发设计、答辩演示脚本与常见问题）见 [docs/系统设计说明.md](docs/系统设计说明.md)。
+
+
+## 十一、一键启停与打包（推荐）
+
+```powershell
+# 起整套（数据库 → 后端 → 前端）
+.\scripts\start-db.ps1
+.\scripts\start-backend.ps1        # 默认连 gss_demo；测试库用 -DbName gss
+.\scripts\start-frontend.ps1
+
+# 停整套（前端 → 后端 → 数据库优雅关闭，数据保留）
+.\scripts\stop-all.ps1
+
+# 打包（后端 jar + 前端 dist）
+.\scripts\package.ps1
+```
+
+- 数据库：3307 独立实例，数据目录 `work/mysql-data`，root 密码 `123456`
+- 前端固定 5173（`strictPort`），端口占用会直接报错而不是跳 5174
+- 脚本细节与常见故障见 `scripts/README.md`
+
+## 十二、数据库迁移顺序（老库升级）
+
+```
+06018c7 版本 sql/gss.sql（基线）
+  → sql/20261114_eir_approval_migration.sql   （M1 办单审核闭环）
+  → sql/20261115_m2_voucher_migration.sql     （M2 预约凭证与核验留痕）
+  → sql/20261115_m3_lane_migration.sql        （M3 车道与配额）
+```
+
+三个迁移脚本都是幂等的，末尾带回滚段；执行方式：
+
+```powershell
+mysql -h 127.0.0.1 -P 3307 -u root -p123456 -D gss < sql/20261115_m3_lane_migration.sql
+```
+
+## 十三、测试
+
+| 命令 | 内容 | 是否需数据库 |
+|---|---|---|
+| `mvn -o test` | 138 个 Mockito 单测 | 否 |
+| `mvn -o test -Pintegration` | 4 条 M1–M4 真库集成 + 并发用例 | 是（3307） |
+
+默认 `mvn test` 通过 `@Tag("integration")` + surefire `excludedGroups` 排除集成测试，换机器/CI 无库也能全绿。

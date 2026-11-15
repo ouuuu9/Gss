@@ -2,6 +2,7 @@ package com.gss.concurrency;
 
 import com.gss.mapper.ApptSlotCapacityMapper;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 运行方式：mvn -Dtest=BookingConcurrencyTest test
  */
 @SpringBootTest
+@Tag("integration")
 @DisplayName("预约时段并发防超约验证")
 class BookingConcurrencyTest {
 
