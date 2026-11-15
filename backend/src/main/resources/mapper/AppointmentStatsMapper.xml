@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gss.mapper.AppointmentStatsMapper">
+
+    <!--
+      M4 统计公共过滤：
+      - 区间一律按 a.appt_date（不是 create_time），避免跨天口径歧义
+      - appt_date / status / lane_id 均有索引
+      - 核验次数来自按 appointment_id 预聚合的派生表，不产生逐行子查询
+      - 核验通过数排除备注含「重复核验」的 PASS（M2 幂等核验会写 PASS）
+    -->
+    <sql id="filters">
+        FROM appointment a
+        LEFT JOIN gate_lane l ON l.id = a.lane_id
+        LEFT JOIN eir_order e ON e.id = a.eir_id
+        LEFT JOIN transport_company c ON c.id = e.company_id
+        LEFT JOIN (
+            SELECT appointment_id,
+                   SUM(CASE WHEN result = 'PASS' AND (remark IS NULL OR remark NOT LIKE '%重复核验%')
+                            THEN 1 ELSE 0 END) AS pass_cnt,
+                   SUM(CASE WHEN result = 'FAIL' THEN 1 ELSE 0 END) AS fail_cnt
+            FROM gate_check_log
+            WHERE appointment_id IS NOT NULL
+            GROUP BY appointment_id
+        ) g ON g.appointment_id = a.id
+        WHERE a.appt_date BETWEEN #{q.startDate} AND #{q.endDate}
+        <if test="q.laneId != null">
+            AND a.lane_id = #{q.laneId}
+        </if>
+        <if test="q.timeSlot != null and q.timeSlot != ''">
+            AND a.time_slot = #{q.timeSlot}
+        </if>
+        <if test="q.companyId != null">
+            AND e.company_id = #{q.companyId}
+        </if>
+    </sql>
+
+    <sql id="metrics">
+        COUNT(1) AS total,
+        IFNULL(SUM(CASE WHEN a.status = 'CANCELLED' THEN 1 ELSE 0 END), 0) AS cancelled,
+        IFNULL(SUM(CASE WHEN a.status = 'NO_SHOW' THEN 1 ELSE 0 END), 0) AS noShow,
+        IFNULL(SUM(CASE WHEN a.status = 'RELEASED' THEN 1 ELSE 0 END), 0) AS released,
+        IFNULL(SUM(g.pass_cnt), 0) AS passCount,
+        IFNULL(SUM(g.fail_cnt), 0) AS failCount,
+        IFNULL(SUM(CASE WHEN a.verify_time IS NOT NULL
+                         AND TIME(a.verify_time) &lt;= STR_TO_DATE(LEFT(a.time_slot, 5), '%H:%i')
+                        THEN 1 ELSE 0 END), 0) AS onTimeCount
+    </sql>
+
+    <select id="summary" resultType="com.gss.vo.StatsSummaryVO">
+        SELECT <include refid="metrics"/>
+        <include refid="filters"/>
+    </select>
+
+    <select id="grouped" resultType="com.gss.vo.StatsRowVO">
+        SELECT
+        <choose>
+            <when test="q.groupBy == 'LANE'">CONCAT(l.gate_no, ' / ', l.lane_no)</when>
+            <when test="q.groupBy == 'SLOT'">a.time_slot</when>
+            <when test="q.groupBy == 'STATUS'">a.status</when>
+            <when test="q.groupBy == 'COMPANY'">IFNULL(c.name, '未知客户')</when>
+            <otherwise>''</otherwise>
+        </choose> AS groupKey,
+        <include refid="metrics"/>
+        <include refid="filters"/>
+        GROUP BY groupKey
+        ORDER BY groupKey
+    </select>
+
+</mapper>

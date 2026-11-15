@@ -79,6 +79,13 @@ const routes = [
         meta: { title: '退款审批', icon: 'RefreshLeft', roles: ['ADMIN', 'COMPANY'], group: '作业中心' }
       },
       {
+        path: 'appointment-stats',
+        name: 'AppointmentStats',
+        component: () => import('@/views/AppointmentStats.vue'),
+        meta: { title: '预约执行统计', icon: 'DataLine', roles: ['ADMIN', 'GATE', 'COMPANY'], group: '数据洞察' }
+      },
+
+      {
         path: 'report',
         name: 'Report',
         component: () => import('@/views/Report.vue'),

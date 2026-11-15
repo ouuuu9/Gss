@@ -76,6 +76,14 @@ export const apptApi = {
   export: (params) => request.get('/api/appointments/export', { params, responseType: 'blob' })
 }
 
+/* ==================== 预约执行统计（M4） ==================== */
+export const statsApi = {
+  appointment: (params) => request.get('/api/stats/appointment', { params }),
+  today: () => request.get('/api/stats/today'),
+  export: (params) => request.get('/api/stats/appointment/export', { params, responseType: 'blob' })
+}
+
+
 /* ==================== 闸口车道与配额（M3） ==================== */
 export const laneApi = {
   list: () => request.get('/api/lanes'),

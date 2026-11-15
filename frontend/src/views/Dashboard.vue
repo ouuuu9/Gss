@@ -31,6 +31,24 @@
       </el-col>
     </el-row>
 
+    <!-- 今日预约执行（M4） -->
+    <el-card shadow="never" class="exec-card">
+      <template #header>
+        <div class="exec-header">
+          <span>今日预约执行</span>
+          <el-button text type="primary" @click="$router.push('/appointment-stats')">查看统计 ›</el-button>
+        </div>
+      </template>
+      <el-row :gutter="12">
+        <el-col v-for="item in execCards" :key="item.label" :xs="12" :sm="8" :md="4">
+          <div class="exec-item">
+            <div class="exec-value">{{ item.value }}</div>
+            <div class="exec-label">{{ item.label }}</div>
+          </div>
+        </el-col>
+      </el-row>
+    </el-card>
+
     <!-- 单证状态分布 -->
     <el-row :gutter="16">
       <el-col :xs="24" :md="16">
@@ -72,7 +90,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { dashboardApi } from '@/api'
+import { dashboardApi, statsApi } from '@/api'
 import { useUserStore } from '@/store/user'
 import { EIR_STATUS, ROLE, dictLabel } from '@/utils/dict'
 
@@ -140,8 +158,24 @@ const distribution = computed(() => {
   return rows
 })
 
+const exec = ref({})
+
+const execCards = computed(() => [
+  { label: '预约总数', value: exec.value.total ?? 0 },
+  { label: '已核验', value: exec.value.passCount ?? 0 },
+  { label: '已放行', value: exec.value.released ?? 0 },
+  { label: '失约', value: exec.value.noShow ?? 0 },
+  { label: '失约率', value: (exec.value.noShowRate ?? 0) + '%' },
+  { label: '准点率', value: (exec.value.punctualRate ?? 0) + '%' }
+])
+
 async function load() {
   stat.value = await dashboardApi.get()
+  try {
+    exec.value = await statsApi.today()
+  } catch (e) {
+    exec.value = {}
+  }
 }
 
 onMounted(load)
@@ -178,6 +212,33 @@ onMounted(load)
 
 .stat-row {
   margin-bottom: 16px;
+}
+
+.exec-card {
+  margin-bottom: 16px;
+}
+
+.exec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.exec-item {
+  text-align: center;
+  padding: 6px 0;
+}
+
+.exec-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: #303133;
+}
+
+.exec-label {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
 }
 
 .stat-card {
