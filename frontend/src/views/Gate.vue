@@ -1,4 +1,6 @@
 <template>
+  <!-- 单根节点：<Transition> 无法动画 fragment 根（多个顶层节点），会告警并跳过动画 -->
+  <div class="gate-page">
   <el-row :gutter="16">
     <!-- 左：办单操作 -->
     <el-col :md="9" :xs="24">
@@ -182,6 +184,7 @@
       </el-card>
     </el-col>
   </el-row>
+  </div>
 </template>
 
 <script setup>

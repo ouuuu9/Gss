@@ -63,8 +63,11 @@
       <!-- 内容区 -->
       <el-main class="main">
         <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
+          <!-- 不使用 out-in 模式：它要求「旧组件离场动画完成」才挂载新组件，
+               快速切菜单时离场回调可能丢失，导致新组件永不挂载（白屏且卡死）。
+               保留 transition 做淡入淡出；key 用 fullPath 保证切换即重建。 -->
+          <transition name="fade">
+            <component :is="Component" :key="$route.fullPath" />
           </transition>
         </router-view>
       </el-main>
